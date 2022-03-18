@@ -1,0 +1,7 @@
+{
+    "name": "chess-alg-website",
+    "version": "0.0.6",
+    "description": "a website used to practice chess ideas",
+    "private": true,
+    "browserslist": ["> 1%", "last 2 versions", "not ie <= 8"]
+}

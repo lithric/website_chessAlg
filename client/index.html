@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <link rel="stylesheet"
+              href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css"
+              integrity="sha384-q94+BZtLrkL1/ohfjR8c6L+A6qzNH9R2hBLwyoAfu3i/WCvQjzL2RQJ3uNHDISdU"
+              crossorigin="anonymous">
+        <link rel="stylesheet" href="style.css">
+        <script src="https://code.jquery.com/jquery-3.5.1.min.js"
+                integrity="sha384-ZvpUoO/+PpLXR1lu4jmpXWu80pZlYUAfxl5NsBMWOEPSjUn/6Z/hRTt8+pR6L4N2"
+                crossorigin="anonymous"></script>
+
+        <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"
+                integrity="sha384-8Vi8VHwn3vjQ9eUHUxex3JSN/NFqUg3QbPyX8kWyb93+8AC/pPWTzj+nHtbC5bxD"
+                crossorigin="anonymous"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.12.0/chess.min.js"></script>
+        <script src="../Libraries/libraries/calc.js"></script>
+    </head>
+    <body>
+        <div id="global-container">
+            <div id="board" style="width: 400px"></div>
+            <button id="change-playstate" onclick="startPosition()">start</button>
+            <div id="config-container">
+                <span class="lbl-config">white to move</span><input type="radio" name="turn-color" id="turn-white" checked onchange="loadPosition()">
+                <span class="lbl-config">black to move</span><input type="radio" name="turn-color" id="turn-black" onchange="loadPosition()">
+                <span class="lbl-config">white king castle</span><input type="checkbox" name="castle-rights" id="white-king-castle" checked onchange="loadPosition()">
+                <span class="lbl-config">white queen castle</span><input type="checkbox" name="castle-rights" id="white-queen-castle" checked onchange="loadPosition()">
+                <span class="lbl-config">black king castle</span><input type="checkbox" name="castle-rights" id="black-king-castle" checked onchange="loadPosition()">
+                <span class="lbl-config">black queen castle</span><input type="checkbox" name="castle-rights" id="black-queen-castle" checked onchange="loadPosition()">
+                <span class="lbl-config">halfmoves amount</span><input type="number" id="halfmoves" placeholder="0" onchange="loadPosition()">
+                <span class="lbl-config">fullmoves amount</span><input type="number" id="fullmoves" placeholder="1" onchange="loadPosition()">
+                <span class="lbl-config">to en-passant</span><h3 id="en-passant-display">-</h3><span class="content-tip">press space on the pawn to en-passant</span>
+            </div>
+            <script src="./script.js"></script>
+        </div>
+    </body>
+</html>

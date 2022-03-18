@@ -1,0 +1,26 @@
+#config-container {
+    display: grid;
+    grid-template-columns: auto auto;
+    width: 200px;
+}
+
+h3 {
+    margin: 0;
+}
+
+.content-tip {
+    color:darkgray;
+}
+
+input {
+    width: 50px;
+}
+.highlight-legal {
+    filter: contrast(1) brightness(1.05);
+}
+.highlight-legal[class*=black] {
+    background-color: rgb(135 109 85);
+}
+.highlight-legal[class*=white] {
+    background-color: rgb(195 170 132);
+}
