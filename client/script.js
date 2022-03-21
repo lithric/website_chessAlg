@@ -191,22 +191,11 @@ var virutal = chess2
 })
 */
 
-class ChessBoard {
+class ChessObject {
     constructor() {
-        this.display.config
+        this.display = document.createElement("div");
+        this.display.className = "chessboard";
+        this.display.id = "chessboard-"+document.getElementsByClassName("chessboard").length;
+        this.display.config = {draggable:true,position:"start"};
     }
 }
-
-class Bean extends HTMLDivElement {
-    constructor() {
-        super();
-        this.setAttribute("hidden",true);
-    }
-    show() {
-        this.setAttribute("hidden","false");
-    }
-    hide() {
-        this.setAttribute("hidden","true");
-    }
-}
-
