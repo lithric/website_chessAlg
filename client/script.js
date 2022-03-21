@@ -193,9 +193,10 @@ var virutal = chess2
 
 class ChessObject {
     constructor() {
-        this.display = document.createElement("div");
-        this.display.className = "chessboard";
-        this.display.id = "chessboard-"+document.getElementsByClassName("chessboard").length;
+        this.$display = document.createElement("div");
+        this.$display.className = "chessboard";
+        this.$display.id = "chessboard-"+document.getElementsByClassName("chessboard").length;
+        this.display = Chessboard(this.$display.id,"start");
         this.display.config = {draggable:true,position:"start"};
     }
 }
