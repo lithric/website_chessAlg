@@ -1,5 +1,3 @@
-import { sleep } from '../Libraries/libraries/calc.mjs';
-import { until } from '../Libraries/libraries/calc.mjs';
 import { createServer } from 'http';
 import url from 'url';
 import Path from 'path';
@@ -11,7 +9,7 @@ const server = createServer(async(request, response) => {
     console.log(request.url);
     if(request.url == "/script.js") {
         response.writeHead(200);
-        readFile('./chessAlg/script.js',(err,data) => {
+        readFile('./client/script.js',(err,data) => {
             if(err) {
                 console.log(err);
             }
@@ -23,7 +21,7 @@ const server = createServer(async(request, response) => {
     }
     else if(request.url == "/style.css") {
         response.writeHead(200);
-        readFile('./chessAlg/style.css',(err,data) => {
+        readFile('./client/style.css',(err,data) => {
             if(err){
                 console.log(err);
             }
@@ -33,9 +31,21 @@ const server = createServer(async(request, response) => {
             }
         });
     }
-    else if(request.url == "/Libraries/libraries/calc.js") {
+    else if(request.url == "/libs/calc.js") {
         response.writeHead(200);
-        readFile('./Libraries/libraries/calc.js',(err,data) => {
+        readFile('./client/libs/calc.js',(err,data) => {
+            if(err){
+                console.log(err);
+            }
+            else {
+                response.write(data);
+                response.end();
+            }
+        })
+    }
+    else if (request.url == "/domcfg.js") {
+        response.writeHead(200);
+        readFile('./client/domcfg.js',(err,data) => {
             if(err){
                 console.log(err);
             }
@@ -47,7 +57,7 @@ const server = createServer(async(request, response) => {
     }
     else if(request.url.includes('/img/chesspieces/wikipedia/')) {
         response.writeHead(200);
-        readFile(`./chessAlg${request.url}`,(err,data)=>{
+        readFile(`./client${request.url}`,(err,data)=>{
             if(err){
                 console.log(err);
             }
@@ -58,7 +68,7 @@ const server = createServer(async(request, response) => {
         });
     }
     else {
-        readFile(`./chessAlg/index.html`,(err,data) => {
+        readFile(`./client/index.html`,(err,data) => {
             if(err) {
                 console.log(err);
             }
