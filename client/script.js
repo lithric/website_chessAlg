@@ -195,8 +195,11 @@ class ChessObject {
     constructor() {
         this.$display = document.createElement("div");
         this.$display.className = "chessboard";
-        this.$display.id = "chessboard-"+document.getElementsByClassName("chessboard").length;
-        this.display = Chessboard(this.$display.id,"start");
-        this.display.config = {draggable:true,position:"start"};
+        this.display = Chessboard(this.$display,{});
+        this.display.config = {};
     }
 }
+
+var chess1 = new ChessObject();
+
+console.log(chess1.display);

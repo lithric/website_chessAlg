@@ -1,7 +1,30 @@
-import { createServer } from 'http';
+import { createServer, ServerResponse } from 'http';
 import url from 'url';
 import Path from 'path';
-import { readFile } from 'fs';
+import { readFile, readFileSync } from 'fs';
+
+ServerResponse.prototype.writeFile = function(filename = "",type, func = function(){}) {
+    type =
+    !filename.endsWith("js") ?
+    !filename.endsWith("css") ?
+    !filename.endsWith("png") ?
+    !filename.endsWith("ico") ?
+    "text/html"
+    :"image/ico"
+    :"image/png"
+    :"text/css"
+    :"text/javascript";
+    readFileSync(__dirname+filename,(err,data) => {
+        if (err) {
+            console.log(err);
+        }
+        else {
+            this.writeHead(200, {'Content-type':type});
+            this.write(data);
+            func().bind(this);
+        }
+    })
+}
 
 const port = 8000;
 
@@ -68,14 +91,17 @@ const server = createServer(async(request, response) => {
         });
     }
     else {
-        readFile(`./client/index.html`,(err,data) => {
-            if(err) {
-                console.log(err);
-            }
-            else {
-                response.write(data);
-                response.end();
-            }
+        response.writeFile('/client/index.html','text/html',function() {
+            this
         });
+        // readFile(`./client/index.html`,(err,data) => {
+        //     if(err) {
+        //         console.log(err);
+        //     }
+        //     else {
+        //         response.write(data);
+        //         response.end();
+        //     }
+        // });
     }
 }).listen(port);
