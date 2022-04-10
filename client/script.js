@@ -129,7 +129,7 @@ MainBoard.prototype.change = async function(source,target) {
     );
 }
 var $enPassant = document.getElementById("en-passant-display");
-var chess = new MainBoard();
+//var chess = new MainBoard();
 
 async function specialAction(evt = new KeyboardEvent) {
     if (evt.key == " ") {
@@ -142,8 +142,8 @@ async function specialAction(evt = new KeyboardEvent) {
 }
 
 function startPosition() {
-    chess.updateFen();
-    chess.started = !chess.started;
+    // chess.updateFen();
+    // chess.started = !chess.started;
 }
 /*
 a board that represents what is actually there
@@ -156,7 +156,7 @@ a board that represents the previously picked up piece
 a board that represents the previously dropped piece
 a board that represents the previous ply
 */
-document.addEventListener("keypress",specialAction);
+//document.addEventListener("keypress",specialAction);
 
 /*
 var chess1 = new ChessBoard();
@@ -177,7 +177,7 @@ chess2.highlightLegalMoves("red","black");
 
 chess2.move("e4");
 
-chess2.delink(chess1);
+chess2.unlink(chess1);
 
 chess1.piece("d2").legalMoves();
 chess1.piece("d2").moves();
@@ -192,14 +192,158 @@ var virutal = chess2
 */
 
 class ChessObject {
-    constructor() {
+    constructor({size = "400px",title="untitled"} = {}) {
+        let action = {
+            onDragStart: (source, piece, position, orientation) => {
+                let moveX = events.rx[0];
+                let moveY = events.ry[0];
+                let $pieceRef = this.$display.getElementsByClassName("square-"+source)[0];
+                /**@type {Array<HTMLImageElement>} */
+                let $imgs = [];
+                let i=0;
+                for (let board of this.linkedBoards) {
+                    //highlight1-32417
+                    let $piece = board.$display.getElementsByClassName("square-"+source)[0];
+                    $piece.classList.add("highlight1-32417");
+                    $imgs.push($piece.getElementsByTagName("img")[0]);
+                    if ($imgs.length-1) {
+                        $imgs[i].style.transform = `translate(-50%,-50%) translate(${getMousePosFrom($pieceRef).x}px,${getMousePosFrom($pieceRef).y}px)`;
+                    }
+                    i++;
+                }
+                document.onmousemove = () => {
+                    for (let $img of $imgs) {
+                        $img.style.transform = `translate(-50%,-50%) translate(${getMousePosFrom($pieceRef).x}px,${getMousePosFrom($pieceRef).y}px)`;
+                    }
+                }
+            },
+            onDragMove: (newLocation, oldLocation, source, piece, position, orientation) => {
+                for (let board of this.linkedBoards) {
+                    board.$display.getElementsByClassName("square-"+oldLocation)[0]?.classList?.remove("highlight1-32417");
+                    board.$display.getElementsByClassName("square-"+newLocation)[0]?.classList?.add("highlight1-32417");
+                    [...this.$display.getElementsByClassName("highlight1-32417")].forEach((elm)=>{
+                        board.$display.getElementsByClassName("square-"+elm.getAttribute("data-square"))[0].className = elm.className;
+                    });
+                }
+            },
+            onDrop: (source, target, piece, newPos, oldPos, orientation) => {
+                document.onmousemove = function() {};
+                for (let board of this.linkedBoards) {
+                    [...board.$display.getElementsByClassName("highlight1-32417")].forEach((elm)=>{
+                        elm.classList.remove("highlight1-32417");
+                    });
+                    board.display.move(source+"-"+target);
+                }
+            },
+            onMouseoutSquare: (square, piece) => {},
+            onMouseoverSquare: (square, piece) => {},
+        }
+        // display has to be made in the constructor
+        this.chessObjectId = 0;
+        if (window.document.body.chess) {
+            this.chessObjectId = window.document.body.chess.childElementCount;
+        }
+        else {
+            window.document.body.chess = document.body.getElementsByTagName("chess")[0];
+        }
+
         this.$display = document.createElement("div");
         this.$display.className = "chessboard";
-        this.display = Chessboard(this.$display,{});
-        this.display.config = {};
+        this.$display.id = "ChessObject:"+this.chessObjectId;
+        this.$display.style.width = size;
+        this.$display.hidden = true;
+        document.body.chess.appendChild(this.$display);
+        let temp = Chessboard(this.$display,{});
+        /**@type {Set<ChessObject>} */
+        this.linkedBoards = new Set();
+        this.display = {
+            ...temp,
+            configBuffer: {
+                ...action,
+                title: title,
+                gameNumber: this.chessObjectId,
+                gameId: title+":"+this.chessObjectId,
+            },
+            fenBuffer: temp.fen,
+            get fen() {
+                return this.fenBuffer();
+            },
+            get config() {
+                return this.configBuffer;
+            },
+            show: ()=>{
+                this.$display.show();
+            },
+            hide: ()=>{
+                this.$display.hide();
+            }
+        }
+        Object.defineProperties(this.display,{
+                configBuffer: {
+                    enumerable: false,
+                    writable: true
+                },
+                fenBuffer: {
+                    enumerable: false,
+                    writable: false
+                },
+                config: {
+                    set: (prop) => {
+                        if (typeof prop === "object") {
+                            Object.assign(this.display.configBuffer, prop);
+                            Object.assign(this.display,{
+                                ...Chessboard(this.$display,this.display.configBuffer),
+
+                            });
+                        }
+                    }
+                },
+                fen: {
+                    set: (str) => {
+                        this.display.position(str);
+                    }
+                }
+        })
+    }
+
+    /**
+     * 
+     * @param {ChessObject} chessObj 
+     */
+    link(chessObj) {
+        this.linkedBoards.add(chessObj);
+        chessObj.linkedBoards.add(this);
+    }
+    /**
+     * 
+     * @param {ChessObject} chessObj 
+     */
+    unlink(chessObj) {
+        this.linkedBoards.delete(chessObj);
+        chessObj.linkedBoards.delete(this);
     }
 }
 
 var chess1 = new ChessObject();
+chess1.display.config = {
+    draggable:true,
+    dropOffBoard:"trash",
+    sparePieces:true,
+    position:"start"
+}
 
-console.log(chess1.display);
+var chess2 = new ChessObject();
+chess2.display.config = {
+    draggable:true,
+    dropOffBoard:"trash",
+    sparePieces:false,
+    position:"start"
+}
+
+chess1.display.show();
+chess2.display.show();
+
+chess1.link(chess2);
+
+console.log(chess1);
+console.log(chess2);

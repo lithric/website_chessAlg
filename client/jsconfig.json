@@ -4,6 +4,6 @@
       "target": "es6"
     },
     "typeAcquisition": {
-        "include": ["jquery","@chrisoakman/chessboardjs"]
+        "include": ["jquery","@chrisoakman/chessboardjs","benchmark"]
     }
 }

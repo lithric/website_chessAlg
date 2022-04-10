@@ -3,6 +3,8 @@ import url from 'url';
 import Path from 'path';
 import { readFile, readFileSync } from 'fs';
 
+var errdir = "C:/Users/Administrator/Documents/Github/website_chessAlg"
+
 ServerResponse.prototype.writeFile = function(filename = "",type, func = function(){}) {
     type =
     !filename.endsWith("js") ?
@@ -14,7 +16,7 @@ ServerResponse.prototype.writeFile = function(filename = "",type, func = functio
     :"image/png"
     :"text/css"
     :"text/javascript";
-    readFileSync(__dirname+filename,(err,data) => {
+    readFileSync(errdir+filename,(err,data) => {
         if (err) {
             console.log(err);
         }
@@ -66,9 +68,33 @@ const server = createServer(async(request, response) => {
             }
         })
     }
-    else if (request.url == "/domcfg.js") {
+    else if (request.url == "/config/domcfg.js") {
         response.writeHead(200);
-        readFile('./client/domcfg.js',(err,data) => {
+        readFile('./client/config/domcfg.js',(err,data) => {
+            if(err){
+                console.log(err);
+            }
+            else {
+                response.write(data);
+                response.end();
+            }
+        })
+    }
+    else if (request.url == "/config/globalcfg.js") {
+        response.writeHead(200);
+        readFile('./client/config/globalcfg.js',(err,data) => {
+            if(err){
+                console.log(err);
+            }
+            else {
+                response.write(data);
+                response.end();
+            }
+        })
+    }
+    else if (request.url == "/benchmark.js") {
+        response.writeHead(200);
+        readFile('./node_modules/benchmark/benchmark.js',(err,data) => {
             if(err){
                 console.log(err);
             }
@@ -91,17 +117,17 @@ const server = createServer(async(request, response) => {
         });
     }
     else {
-        response.writeFile('/client/index.html','text/html',function() {
-            this
-        });
-        // readFile(`./client/index.html`,(err,data) => {
-        //     if(err) {
-        //         console.log(err);
-        //     }
-        //     else {
-        //         response.write(data);
-        //         response.end();
-        //     }
+        // response.writeFile('/client/index.html','text/html',function() {
+        //     this
         // });
+        readFile(`./client/index.html`,(err,data) => {
+            if(err) {
+                console.log(err);
+            }
+            else {
+                response.write(data);
+                response.end();
+            }
+        });
     }
 }).listen(port);

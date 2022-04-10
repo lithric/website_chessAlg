@@ -1,4 +1,9 @@
 /**
+ * 
+ * @typedef {import("benchmark").Suite} Suite
+ */
+
+/**
  * @param {Number} ms milliseconds the current thread will stop for
  */
 function sleep(ms,res) {
@@ -6,12 +11,13 @@ function sleep(ms,res) {
 }
 /**
  * 
- * @param {*} cond the condition to check against
- * @param {*} freq the frequency the condition is checked (cannot be 0)
- * @param {*} delay the delay between the check and the output (cannot be 0)
+ * @this {function(): Promise<boolean>}
+ * @param {function(): Promise<boolean>} cond the condition to check against
+ * @param {number} check_freq the frequency the condition is checked (cannot be 0)
+ * @param {number} delay the delay between the check and the output (cannot be 0)
  * @returns the output of the original function if it is not interrupted, else undefined
  */
-Function.prototype.unless = function(cond = async()=>{return Boolean();},freq=100,delay=100) {
+Function.prototype.unless = function(cond,check_freq=100,delay=100) {
     // return a function that can be interrupted by another function
     var thisFunction = async(...args) => {
         var interrupted = false;
@@ -34,7 +40,7 @@ Function.prototype.unless = function(cond = async()=>{return Boolean();},freq=10
                 return;
             }
             else {
-                await sleep(freq);
+                await sleep(check_freq);
                 cond().then(back);
             }
         });
@@ -47,24 +53,29 @@ Function.prototype.unless = function(cond = async()=>{return Boolean();},freq=10
 }
 /**
  * 
- * @param cond a function that will eventually return a boolean after some amount of time
- * @param {Number} timeout the allowed time for the condition to be true
- * @param {Number} delay how often the condition checked
+ * @param {function(): Promise<boolean>} cond a function that will eventually return a boolean after some amount of time
+ * @param {number} timeout the allowed time for the condition to be true
+ * @param {number} delay how often the condition checked
  * @returns if the condition is met before timeout
  */
- async function until(cond = async()=>{return Boolean()},timeout=3000,delay=100) {
+ async function until(cond,timeout=3000,delay=100) {
     var passed = false;
     var timedOut = false;
     setTimeout(()=>{timedOut = true},timeout);
     while(true) {
-        passed = await cond.unless(async()=>timedOut,1,1)();
+        passed = await cond();
         if (passed || timedOut) {
             break;
         }
+        console.log("ok");
         await sleep(delay);
     }
     return timedOut;
 }
+async function test_0() {
+}
+
+test_0();
 /*
 async function unless(condA = async()=>{return Boolean()},condB = async()=>{return Boolean()},timeout=3000,delay=100) {
     var interrupted = false;
