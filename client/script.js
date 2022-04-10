@@ -204,8 +204,8 @@ class ChessObject {
                 for (let board of this.linkedBoards) {
                     //highlight1-32417
                     let $piece = board.$display.getElementsByClassName("square-"+source)[0];
-                    $piece.classList.add("highlight1-32417");
-                    $imgs.push($piece.getElementsByTagName("img")[0]);
+                    $piece?.classList?.add("highlight1-32417");
+                    $imgs.push($piece?.getElementsByTagName("img")[0]);
                     if ($imgs.length-1) {
                         $imgs[i].style.transform = `translate(-50%,-50%) translate(${getMousePosFrom($pieceRef).x}px,${getMousePosFrom($pieceRef).y}px)`;
                     }
@@ -213,9 +213,11 @@ class ChessObject {
                 }
                 document.onmousemove = () => {
                     for (let $img of $imgs) {
-                        $img.style.transform = `translate(-50%,-50%) translate(${getMousePosFrom($pieceRef).x}px,${getMousePosFrom($pieceRef).y}px)`;
-                        $img.style.position = "relative";
-                        $img.style.zIndex = 999;
+                        if ($img) {
+                            $img.style.transform = `translate(-50%,-50%) translate(${getMousePosFrom($pieceRef).x}px,${getMousePosFrom($pieceRef).y}px)`;
+                            $img.style.position = "relative";
+                            $img.style.zIndex = 999;
+                        }
                     }
                 }
             },
@@ -234,7 +236,13 @@ class ChessObject {
                     [...board.$display.getElementsByClassName("highlight1-32417")].forEach((elm)=>{
                         elm.classList.remove("highlight1-32417");
                     });
-                    board.$display.getElementsByClassName("square-"+source)[0].getElementsByTagName("img")[0].style.zIndex = 0;
+                    let $piece = board.$display.getElementsByClassName("square-"+source)[0];
+                    if ($piece) {
+                        let $img = $piece.getElementsByTagName("img")[0];
+                        if ($img) {
+                            $img.style.zIndex = 0;
+                        }
+                    }
                     board.display.move(source+"-"+target);
                 }
             },
