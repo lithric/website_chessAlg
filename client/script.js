@@ -214,6 +214,8 @@ class ChessObject {
                 document.onmousemove = () => {
                     for (let $img of $imgs) {
                         $img.style.transform = `translate(-50%,-50%) translate(${getMousePosFrom($pieceRef).x}px,${getMousePosFrom($pieceRef).y}px)`;
+                        $img.style.position = "relative";
+                        $img.style.zIndex = 999;
                     }
                 }
             },
@@ -232,6 +234,7 @@ class ChessObject {
                     [...board.$display.getElementsByClassName("highlight1-32417")].forEach((elm)=>{
                         elm.classList.remove("highlight1-32417");
                     });
+                    board.$display.getElementsByClassName("square-"+source)[0].getElementsByTagName("img")[0].style.zIndex = 0;
                     board.display.move(source+"-"+target);
                 }
             },
