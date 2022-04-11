@@ -24,3 +24,6 @@ input {
 .highlight-legal[class*=white] {
     background-color: rgb(195 170 132);
 }
+.legalSquare {
+    filter: grayscale(100%);
+}

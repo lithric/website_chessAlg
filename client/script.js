@@ -191,8 +191,53 @@ var virutal = chess2
 })
 */
 
-class ChessObject {
+class ChessObject extends Chess{
+    #override;
     constructor({size = "400px",title="untitled"} = {}) {
+        super();
+        this.#override = {
+            move: this.move,
+            moves: this.moves
+        }
+        this.link = (chessObj) => {
+            this.linkedBoards.add(chessObj);
+            chessObj.linkedBoards.add(this);
+        }
+        this.unlink = (chessObj) => {
+            this.linkedBoards.delete(chessObj);
+            chessObj.linkedBoards.delete(this);
+        }
+        this.move = function(e) {
+            let moveObj = {};
+            [moveObj.from,moveObj.to] = e.split("-");
+            let legal = this.#override.move(moveObj);
+            this.display.move(e);
+            //legal ||
+            this.load(`${this.display.fen()} ${this.display.orientation()[0]} - - 0 1`);
+            if (arguments.length < 2) {
+                for (let board of this.linkedBoards) {
+                    board.move(e,false);
+                }
+            }
+            return legal;
+        }
+        this.highlightLegalMoves = function(options) {
+            for (let $square of this.$display.getElementsByClassName("legalSquare")) {
+                $square.classList.remove("legalSquare");
+            }
+            let squares = this.#override.moves(options);
+            for (let square of squares) {
+                let $square = this.$display.getElementsByClassName("square-"+square)[0];
+                if ($square) {
+                    $square.classList.add("legalSquare");
+                }
+            }
+            if (arguments.length < 2) {
+                for (let board of this.linkedBoards) {
+                    board.highlightLegalMoves(options,true);
+                }
+            }
+        }
         let action = {
             onDragStart: (source, piece, position, orientation) => {
                 let moveX = events.rx[0];
@@ -232,6 +277,9 @@ class ChessObject {
             },
             onDrop: (source, target, piece, newPos, oldPos, orientation) => {
                 document.onmousemove = function() {};
+                this.move(source+"-"+target);
+                console.log(this.ascii());
+                this.highlightLegalMoves();
                 for (let board of this.linkedBoards) {
                     [...board.$display.getElementsByClassName("highlight1-32417")].forEach((elm)=>{
                         elm.classList.remove("highlight1-32417");
@@ -243,7 +291,7 @@ class ChessObject {
                             $img.style.zIndex = 0;
                         }
                     }
-                    board.display.move(source+"-"+target);
+                    console.log(board.ascii());
                 }
             },
             onMouseoutSquare: (square, piece) => {},
@@ -275,10 +323,6 @@ class ChessObject {
                 gameNumber: this.chessObjectId,
                 gameId: title+":"+this.chessObjectId,
             },
-            fenBuffer: temp.fen,
-            get fen() {
-                return this.fenBuffer();
-            },
             get config() {
                 return this.configBuffer;
             },
@@ -294,10 +338,6 @@ class ChessObject {
                     enumerable: false,
                     writable: true
                 },
-                fenBuffer: {
-                    enumerable: false,
-                    writable: false
-                },
                 config: {
                     set: (prop) => {
                         if (typeof prop === "object") {
@@ -308,30 +348,8 @@ class ChessObject {
                             });
                         }
                     }
-                },
-                fen: {
-                    set: (str) => {
-                        this.display.position(str);
-                    }
                 }
         })
-    }
-
-    /**
-     * 
-     * @param {ChessObject} chessObj 
-     */
-    link(chessObj) {
-        this.linkedBoards.add(chessObj);
-        chessObj.linkedBoards.add(this);
-    }
-    /**
-     * 
-     * @param {ChessObject} chessObj 
-     */
-    unlink(chessObj) {
-        this.linkedBoards.delete(chessObj);
-        chessObj.linkedBoards.delete(this);
     }
 }
 
@@ -358,3 +376,5 @@ chess1.link(chess2);
 
 console.log(chess1);
 console.log(chess2);
+
+chess1.highlightLegalMoves();
