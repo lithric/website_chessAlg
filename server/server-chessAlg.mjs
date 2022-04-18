@@ -32,8 +32,60 @@ const port = 8000;
 
 const server = createServer(async(request, response) => {
     console.log(request.url);
-    if(request.url == "/script.js") {
+    if(request.url == "/chessboard.css") {
         response.writeHead(200);
+        readFile("./node_modules/@chrisoakman/chessboardjs/dist/chessboard-1.0.0.css",(err,data)=>{
+            if(err) {
+                console.log(err);
+            }
+            else {
+                response.write(data);
+                response.end();
+            }
+        })
+    }
+    else if(request.url == "/jquery.js") {
+        response.writeHead(200);
+        readFile("./node_modules/jquery/dist/jquery.js",(err,data)=>{
+            if(err) {
+                console.log(err);
+            }
+            else {
+                response.write(data);
+                response.end();
+            }
+        })
+    }
+    else if(request.url == "/chess.js") {
+        response.writeHead(200,{
+            "Content-Type":"text/javascript"
+        });
+        readFile("./node_modules/chess.js/chess.js",(err,data)=>{
+            if(err) {
+                console.log(err);
+            }
+            else {
+                response.write(data);
+                response.end();
+            }
+        })
+    }
+    else if(request.url == "/chessboard.js") {
+        response.writeHead(200);
+        readFile("./node_modules/@chrisoakman/chessboardjs/dist/chessboard-1.0.0.js",(err,data)=>{
+            if(err) {
+                console.log(err);
+            }
+            else {
+                response.write(data);
+                response.end();
+            }
+        })
+    }
+    else if(request.url == "/script.js") {
+        response.writeHead(200,{
+            "Content-Type":"text/javascript"
+        });
         readFile('./client/script.js',(err,data) => {
             if(err) {
                 console.log(err);

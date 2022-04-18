@@ -227,10 +227,8 @@ class ChessObject extends Chess{
             }
             let squares = this.#override.moves(options);
             for (let square of squares) {
-                let $square = this.$display.getElementsByClassName("square-"+square)[0];
-                if ($square) {
-                    $square.classList.add("legalSquare");
-                }
+                let $square = this.$display.getElementsByClassName("square-"+square.slice(-2))[0];
+                $square.classList.add("legalSquare");
             }
             if (arguments.length < 2) {
                 for (let board of this.linkedBoards) {
