@@ -1,10 +1,13 @@
-import { createServer, ServerResponse } from 'http';
-import url from 'url';
-import Path from 'path';
-import { readFile, readFileSync } from 'fs';
-import mime from 'mime-types';
+const http = require('http');
+const createServer = http.createServer;
+const ServerResponse = http.ServerResponse;
+const fs = require('fs');
+const readFile = fs.readFile;
+const mime = require("mime-types");
 
-var serverDir = "C:/Users/Administrator/Documents/Github/website_chessAlg";
+
+var serverDir = __dirname.replace("\\server","");
+console.log(serverDir);
 ServerResponse.prototype.readFile = function(reqUrl) {
     return new Promise((resolve,reject) => {
         readFile(serverDir+reqUrl,(err,data) => {

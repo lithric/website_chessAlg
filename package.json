@@ -5,8 +5,7 @@
     "private": true,
     "browserslist": [
         "> 1%",
-        "last 2 versions",
-        "not ie <= 8"
+        "last 2 versions"
     ],
     "dependencies": {
         "@chrisoakman/chessboardjs": "^1.0.0",
