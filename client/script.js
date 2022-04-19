@@ -1,3 +1,4 @@
+
 class MainBoard {
     constructor(id="board",config={draggable:true,dropOffBoard:"trash",sparePieces:true,position:"start"}) {
         this.started = false;
@@ -191,163 +192,180 @@ var virutal = chess2
 })
 */
 
+
 class ChessObject extends Chess{
     #override;
     constructor({size = "400px",title="untitled"} = {}) {
         super();
         this.#override = {
             move: this.move,
-            moves: this.moves
+            moves: this.moves,
+            clear: this.clear,
+            put: this.put,
+            load: this.load,
+            load_pgn: this.load_pgn,
         }
+        /**@param {ChessObject} chessObj */
         this.link = (chessObj) => {
             this.linkedBoards.add(chessObj);
             chessObj.linkedBoards.add(this);
         }
+        /**@param {ChessObject} chessObj */
         this.unlink = (chessObj) => {
             this.linkedBoards.delete(chessObj);
             chessObj.linkedBoards.delete(this);
         }
-        this.move = function(e) {
-            let moveObj = {};
-            [moveObj.from,moveObj.to] = e.split("-");
-            let legal = this.#override.move(moveObj);
-            this.display.move(e);
-            //legal ||
-            this.load(`${this.display.fen()} ${this.display.orientation()[0]} - - 0 1`);
-            if (arguments.length < 2) {
+        /**@param {string} e */
+        this.move = function(e,{dropped=false}={}) {
+            let legal = !!this.#override.move(e.split("-").rekey("from","to"));
+            dropped || this.display.move(e,false);
+            this.load(`${this.display.fen()} ${this.display.orientation[0]} - - 0 1`);
+            if (arguments.length < 3) {
                 for (let board of this.linkedBoards) {
-                    board.move(e,false);
+                    board.move(e,{dropped:false},false);
                 }
             }
             return legal;
         }
-        this.highlightLegalMoves = function(options) {
-            for (let $square of this.$display.getElementsByClassName("legalSquare")) {
+        this.highlightLegalMoves = async function(options) {
+            await until(async()=>this.display.shadowRoot);
+            for (let $square of this.display.shadowRoot.querySelectorAll(".legalSquare")) {
                 $square.classList.remove("legalSquare");
+                $square.style.filter = "";
             }
             let squares = this.#override.moves(options);
             for (let square of squares) {
-                let $square = this.$display.getElementsByClassName("square-"+square.slice(-2))[0];
-                $square.classList.add("legalSquare");
+                let $square = this.display.shadowRoot.getElementById("square-"+square.slice(-2));
+                if($square) {
+                    $square.classList.add("legalSquare");
+                    $square.style.filter = "grayscale(90%)";
+                }
             }
             if (arguments.length < 2) {
                 for (let board of this.linkedBoards) {
-                    board.highlightLegalMoves(options,true);
+                    board.highlightLegalMoves(options,false);
                 }
             }
         }
         let action = {
-            onDragStart: (source, piece, position, orientation) => {
-                let moveX = events.rx[0];
-                let moveY = events.ry[0];
-                let $pieceRef = this.$display.getElementsByClassName("square-"+source)[0];
+            "drag-start": (e) => {
+                const {source, piece, position, orientation} = e.detail;
+                let $pieceRef = this.display.shadowRoot.getElementById("square-"+source);
                 /**@type {Array<HTMLImageElement>} */
                 let $imgs = [];
                 let i=0;
                 for (let board of this.linkedBoards) {
-                    //highlight1-32417
-                    let $piece = board.$display.getElementsByClassName("square-"+source)[0];
-                    $piece?.classList?.add("highlight1-32417");
-                    $imgs.push($piece?.getElementsByTagName("img")[0]);
-                    if ($imgs.length-1) {
-                        $imgs[i].style.transform = `translate(-50%,-50%) translate(${getMousePosFrom($pieceRef).x}px,${getMousePosFrom($pieceRef).y}px)`;
+                    let $piece = board.display.shadowRoot.getElementById("square-"+source);
+                    if($piece) {
+                        $piece.part.add("highlight");
+                        let $img = $piece.getElementsByClassName("piece-image")[0];
+                        if($img) {
+                            $img.style.transform = `translate(-50%,-50%) translate(${getMousePosFrom($pieceRef).x}px,${getMousePosFrom($pieceRef).y}px)`;
+                            $img.style.position = "relative";
+                            $img.style.zIndex = 100;
+                            $imgs.push($img);
+                            i++;
+                        }
                     }
-                    i++;
                 }
                 document.onmousemove = () => {
                     for (let $img of $imgs) {
                         if ($img) {
                             $img.style.transform = `translate(-50%,-50%) translate(${getMousePosFrom($pieceRef).x}px,${getMousePosFrom($pieceRef).y}px)`;
                             $img.style.position = "relative";
-                            $img.style.zIndex = 999;
+                            $img.style.zIndex = 100;
                         }
                     }
                 }
             },
-            onDragMove: (newLocation, oldLocation, source, piece, position, orientation) => {
+            "drag-move": (e) => {
+                const {newLocation, oldLocation, source} = e.detail;
                 for (let board of this.linkedBoards) {
-                    board.$display.getElementsByClassName("square-"+oldLocation)[0]?.classList?.remove("highlight1-32417");
-                    board.$display.getElementsByClassName("square-"+newLocation)[0]?.classList?.add("highlight1-32417");
-                    [...this.$display.getElementsByClassName("highlight1-32417")].forEach((elm)=>{
-                        board.$display.getElementsByClassName("square-"+elm.getAttribute("data-square"))[0].className = elm.className;
-                    });
+                    let $root = board.display.shadowRoot;
+                    $root.getElementById("square-"+oldLocation)?.part?.remove("highlight");
+                    $root.getElementById("square-"+newLocation)?.part?.add("highlight");
+                    $root.getElementById("square-"+source)?.part?.add("highlight");
                 }
             },
-            onDrop: (source, target, piece, newPos, oldPos, orientation) => {
+            "drop": (e) => {
+                const {source, target} = e.detail;
                 document.onmousemove = function() {};
                 this.move(source+"-"+target);
-                console.log(this.ascii());
                 this.highlightLegalMoves();
                 for (let board of this.linkedBoards) {
-                    [...board.$display.getElementsByClassName("highlight1-32417")].forEach((elm)=>{
-                        elm.classList.remove("highlight1-32417");
-                    });
-                    let $piece = board.$display.getElementsByClassName("square-"+source)[0];
+                    let $root = board.display.shadowRoot;
+                    let $piece = $root.getElementById("square-"+source);
                     if ($piece) {
-                        let $img = $piece.getElementsByTagName("img")[0];
+                        $piece.part.remove("highlight");
+                        $root.getElementById("square-"+target)?.part?.remove("highlight");
+                        let $img = $piece.getElementsByClassName("piece-image")[0];
                         if ($img) {
+                            $img.style.transform = "";
                             $img.style.zIndex = 0;
                         }
                     }
                     console.log(board.ascii());
                 }
-            },
-            onMouseoutSquare: (square, piece) => {},
-            onMouseoverSquare: (square, piece) => {},
-        }
-        // display has to be made in the constructor
-        this.chessObjectId = 0;
-        if (window.document.body.chess) {
-            this.chessObjectId = window.document.body.chess.childElementCount;
-        }
-        else {
-            window.document.body.chess = document.body.getElementsByTagName("chess")[0];
-        }
-
-        this.$display = document.createElement("div");
-        this.$display.className = "chessboard";
-        this.$display.id = "ChessObject:"+this.chessObjectId;
-        this.$display.style.width = size;
-        this.$display.hidden = true;
-        document.body.chess.appendChild(this.$display);
-        let temp = Chessboard(this.$display,{});
-        /**@type {Set<ChessObject>} */
-        this.linkedBoards = new Set();
-        this.display = {
-            ...temp,
-            configBuffer: {
-                ...action,
-                title: title,
-                gameNumber: this.chessObjectId,
-                gameId: title+":"+this.chessObjectId,
-            },
-            get config() {
-                return this.configBuffer;
-            },
-            show: ()=>{
-                this.$display.show();
-            },
-            hide: ()=>{
-                this.$display.hide();
             }
         }
-        Object.defineProperties(this.display,{
-                configBuffer: {
-                    enumerable: false,
-                    writable: true
-                },
-                config: {
-                    set: (prop) => {
-                        if (typeof prop === "object") {
-                            Object.assign(this.display.configBuffer, prop);
-                            Object.assign(this.display,{
-                                ...Chessboard(this.$display,this.display.configBuffer),
+        // display has to be made in the constructor
+        this.chessObjectId = document.chess.childElementCount;
 
-                            });
+        this.display = createElement("chess-board",{
+            id:"ChessObject:"+this.chessObjectId,
+            style: {
+                width:size,
+                display:"none",
+            },
+            addEventListeners: {
+                ...action
+            }
+        });
+        Object.defineProperties(this.display,{
+            config: {
+                get: ()=>{
+                    console.log(this.display);
+                    return {
+                        appearSpeed: this.display.getAttribute("appear-speed"),
+                        draggablePieces: this.display.getAttribute("draggable-pieces"),
+                        dropOffBoard: this.display.getAttribute("drop-off-board"),
+                        hideNotation: this.display.getAttribute("hide-notation"),
+                        moveSpeed: this.display.getAttribute("move-speed"),
+                        orientation: this.display.getAttribute("orientation"),
+                        snapSpeed: this.display.getAttribute("snap-speed"),
+                        snapbackSpeed: this.display.getAttribute("snapback-speed"),
+                        sparePieces: this.display.getAttribute("spare-pieces"),
+                        trashSpeed: this.display.getAttribute("trash-speed"),
+                        position: this.display.getAttribute("position"),
+                    }
+                },
+                set: (obj)=>{
+                    let valid = ["appear-speed","draggable-pieces","drop-off-board",
+                                 "hide-notation","move-speed","orientation","snap-speed",
+                                 "snapback-speed","spare-pieces","trash-speed","position"];
+                    let validPair = ["appearSpeed","draggable","dropOffBoard",
+                                     "hideNotation","moveSpeed","orientation","snapSpeed",
+                                     "snapbackSpeed","sparePieces","trashSpeed","position"];
+                    for (let key in obj) {
+                        if (valid.includes(key)) {
+                            this.display.setAttribute(key,obj[key]);
+                        }
+                        else if (validPair.includes(key)) {
+                            this.display.setAttribute(valid[validPair.indexOf(key)],obj[key]);
                         }
                     }
                 }
-        })
+            }
+        });
+        this.display.show = function(){
+            this.style.display = "block";
+        }
+        this.display.hide = function(){
+            this.style.display = "none";
+        }
+        document.chess.appendChild(this.display);
+        /**@type {Set<ChessObject>} */
+        this.linkedBoards = new Set();
     }
 }
 
@@ -371,8 +389,5 @@ chess1.display.show();
 chess2.display.show();
 
 chess1.link(chess2);
-
-console.log(chess1);
-console.log(chess2);
 
 chess1.highlightLegalMoves();

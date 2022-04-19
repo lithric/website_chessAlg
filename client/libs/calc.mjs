@@ -47,23 +47,23 @@ Function.prototype.unless = function(cond = async()=>{return Boolean();},freq=10
 }
 /**
  * 
- * @param cond a function that will eventually return a boolean after some amount of time
+ * @param {function(): Promise<boolean>} cond a function that will eventually return a boolean after some amount of time
  * @param {Number} timeout the allowed time for the condition to be true
  * @param {Number} delay how often the condition checked
  * @returns if the condition is met before timeout
  */
- async function until(cond = async()=>{return Boolean()},timeout=3000,delay=100) {
+ async function until(cond,timeout=3000,delay=100) {
     var passed = false;
     var timedOut = false;
     setTimeout(()=>{timedOut = true},timeout);
     while(true) {
-        passed = await cond.unless(async()=>timedOut,1,1)();
+        passed = await cond();
         if (passed || timedOut) {
             break;
         }
         await sleep(delay);
     }
-    return timedOut;
+    return passed;
 }
 
 class Calc extends Array {

@@ -1,31 +1,19 @@
 <!DOCTYPE html>
 <html>
     <head>
-        <link rel="stylesheet"
-              href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css"
-              integrity="sha384-q94+BZtLrkL1/ohfjR8c6L+A6qzNH9R2hBLwyoAfu3i/WCvQjzL2RQJ3uNHDISdU"
-              crossorigin="anonymous">
-        <link rel="stylesheet" href="style.css">
-        <script src="jquery.js"></script>
-        <!-- <script src="https://code.jquery.com/jquery-3.5.1.min.js"
-                integrity="sha384-ZvpUoO/+PpLXR1lu4jmpXWu80pZlYUAfxl5NsBMWOEPSjUn/6Z/hRTt8+pR6L4N2"
-                crossorigin="anonymous"></script> -->
-        <script src="chessboard.js"></script>
-        <!-- <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"
-                integrity="sha384-8Vi8VHwn3vjQ9eUHUxex3JSN/NFqUg3QbPyX8kWyb93+8AC/pPWTzj+nHtbC5bxD"
-                crossorigin="anonymous"></script> -->
-        <!-- <script src="chess.js" type="module"></script> -->
+        <link rel="stylesheet" href="client/style.css">
+        <script src="node_modules/jquery/dist/jquery.js"></script>
+        <script src="node_modules/chessboard-element/bundled/chessboard-element.bundled.js" type="module"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.12.0/chess.min.js"></script>
-        <script src="benchmark.js"></script>
-
-        <script src="./libs/calc.js"></script>
-        <script src="./config/domcfg.js"></script>
-        <script src="./config/globalcfg.js"></script>
+        <script src="node_modules/benchmark/benchmark.js"></script>
+        <script src="client/libs/calc.js"></script>
+        <script src="client/config/domcfg.js"></script>
+        <script src="client/config/globalcfg.js"></script>
     </head>
     <body>
         <div id="global-container">
-            <chess>
-            </chess>
+            <chess-body>
+            </chess-body>
             <button id="change-playstate" onclick="startPosition()">start</button>
             <div id="config-container">
                 <span class="lbl-config">white to move</span><input type="radio" name="turn-color" id="turn-white" checked onchange="loadPosition()">
@@ -38,7 +26,7 @@
                 <span class="lbl-config">fullmoves amount</span><input type="number" id="fullmoves" placeholder="1" onchange="loadPosition()">
                 <span class="lbl-config">to en-passant</span><h3 id="en-passant-display">-</h3><span class="content-tip">press space on the pawn to en-passant</span>
             </div>
-            <script src="./script.js"></script>
+            <script src="client/script.js"></script>
         </div>
     </body>
 </html>

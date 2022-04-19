@@ -22,9 +22,11 @@ var events;
             if (i > t_path.length-3) {
                 return acc;
             }
-            let rect = curr.getBoundingClientRect();
-            acc[0].push(events.clientX - rect.left);
-            acc[1].push(events.clientY - rect.top);
+            if(curr.getBoundingClientRect) {
+                let rect = curr.getBoundingClientRect();
+                acc[0].push(events.clientX - rect.left);
+                acc[1].push(events.clientY - rect.top);
+            }
             return acc;
         });
     }
@@ -40,4 +42,69 @@ function getMousePosFrom(elm) {
     returnValue.x = events.clientX - rect.left;
     returnValue.y = events.clientY - rect.top;
     return returnValue;
+}
+
+Array.prototype.rekey = function rekey() {
+    var base = {...this};
+    return [...arguments].reduce((acc,cur,i)=>{
+        let type = cur?.constructor;
+        if(type === String) {
+            acc[cur] = base[i];
+            delete base[i];
+        }
+        else if (type === Array) {
+            for (val of cur.flat()) {
+                acc[val] = base[i];
+            }
+            delete base[i];
+        }
+        else if (type === Object) {
+            for (key in cur) {
+                acc[cur[key]] = base[key];
+                delete base[key];
+            }
+        }
+        if (i === arguments.length-1) {
+            acc = {...acc,...base};
+        }
+        return acc;
+    },{});
+}
+
+/**
+ * 
+ * @param {string} str 
+ * @param {Object} obj
+ */
+ function createElement(str="div",obj= {}) {
+    var elm = document.createElement(str);
+    if (obj.addEventListeners) {
+        for (let key in obj.addEventListeners) {
+            elm.addEventListener(key,obj.addEventListeners[key]);
+        }
+    }
+    if (obj.children) {
+        for (let el of obj.children) {
+            elm.appendChild(el);
+        }
+    }
+    if (obj.style) {
+        for (let key in obj.style) {
+            elm.style[key] = obj.style[key];
+        }
+    }
+    for (let key in obj) {
+        if(key != "children" && 
+        key != "addEventListeners" &&
+        key != "setAttributes" &&
+        key != "style") {
+            elm[key] = obj[key];
+        }
+    }
+    if (obj.setAttributes) {
+        for (let key in obj.setAttributes) {
+            elm.setAttribute(key,obj.setAttributes[key]);
+        }
+    }
+    return elm;
 }

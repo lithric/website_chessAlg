@@ -2,184 +2,45 @@ import { createServer, ServerResponse } from 'http';
 import url from 'url';
 import Path from 'path';
 import { readFile, readFileSync } from 'fs';
+import mime from 'mime-types';
 
-var errdir = "C:/Users/Administrator/Documents/Github/website_chessAlg"
-
-ServerResponse.prototype.writeFile = function(filename = "",type, func = function(){}) {
-    type =
-    !filename.endsWith("js") ?
-    !filename.endsWith("css") ?
-    !filename.endsWith("png") ?
-    !filename.endsWith("ico") ?
-    "text/html"
-    :"image/ico"
-    :"image/png"
-    :"text/css"
-    :"text/javascript";
-    readFileSync(errdir+filename,(err,data) => {
-        if (err) {
-            console.log(err);
-        }
-        else {
-            this.writeHead(200, {'Content-type':type});
-            this.write(data);
-            func().bind(this);
-        }
+var serverDir = "C:/Users/Administrator/Documents/Github/website_chessAlg";
+ServerResponse.prototype.readFile = function(reqUrl) {
+    return new Promise((resolve,reject) => {
+        readFile(serverDir+reqUrl,(err,data) => {
+            if (err) {
+                reject(err);
+            }
+            else {
+                this.writeHead(200, {'Content-Type':mime.lookup(reqUrl)});
+                resolve(data);
+            }
+        })
     })
+}
+
+ServerResponse.prototype.writeFile = async function(reqUrl) {
+    return this.readFile(reqUrl)
+    .then((data)=>{
+        this.write(data);
+    })
+    .catch((err)=>{console.log(err)});
 }
 
 const port = 8000;
 
 const server = createServer(async(request, response) => {
     console.log(request.url);
-    if(request.url == "/chessboard.css") {
-        response.writeHead(200);
-        readFile("./node_modules/@chrisoakman/chessboardjs/dist/chessboard-1.0.0.css",(err,data)=>{
-            if(err) {
-                console.log(err);
-            }
-            else {
-                response.write(data);
-                response.end();
-            }
-        })
+    if (!["/","/node_modules/chessboard-element/index.js"].includes(request.url)) {
+        await response.writeFile(request.url);
+        response.end();
     }
-    else if(request.url == "/jquery.js") {
-        response.writeHead(200);
-        readFile("./node_modules/jquery/dist/jquery.js",(err,data)=>{
-            if(err) {
-                console.log(err);
-            }
-            else {
-                response.write(data);
-                response.end();
-            }
-        })
-    }
-    else if(request.url == "/chess.js") {
-        response.writeHead(200,{
-            "Content-Type":"text/javascript"
-        });
-        readFile("./node_modules/chess.js/chess.js",(err,data)=>{
-            if(err) {
-                console.log(err);
-            }
-            else {
-                response.write(data);
-                response.end();
-            }
-        })
-    }
-    else if(request.url == "/chessboard.js") {
-        response.writeHead(200);
-        readFile("./node_modules/@chrisoakman/chessboardjs/dist/chessboard-1.0.0.js",(err,data)=>{
-            if(err) {
-                console.log(err);
-            }
-            else {
-                response.write(data);
-                response.end();
-            }
-        })
-    }
-    else if(request.url == "/script.js") {
-        response.writeHead(200,{
-            "Content-Type":"text/javascript"
-        });
-        readFile('./client/script.js',(err,data) => {
-            if(err) {
-                console.log(err);
-            }
-            else {
-                response.write(data);
-                response.end();
-            }
-        });
-    }
-    else if(request.url == "/style.css") {
-        response.writeHead(200);
-        readFile('./client/style.css',(err,data) => {
-            if(err){
-                console.log(err);
-            }
-            else {
-                response.write(data);
-                response.end();
-            }
-        });
-    }
-    else if(request.url == "/libs/calc.js") {
-        response.writeHead(200);
-        readFile('./client/libs/calc.js',(err,data) => {
-            if(err){
-                console.log(err);
-            }
-            else {
-                response.write(data);
-                response.end();
-            }
-        })
-    }
-    else if (request.url == "/config/domcfg.js") {
-        response.writeHead(200);
-        readFile('./client/config/domcfg.js',(err,data) => {
-            if(err){
-                console.log(err);
-            }
-            else {
-                response.write(data);
-                response.end();
-            }
-        })
-    }
-    else if (request.url == "/config/globalcfg.js") {
-        response.writeHead(200);
-        readFile('./client/config/globalcfg.js',(err,data) => {
-            if(err){
-                console.log(err);
-            }
-            else {
-                response.write(data);
-                response.end();
-            }
-        })
-    }
-    else if (request.url == "/benchmark.js") {
-        response.writeHead(200);
-        readFile('./node_modules/benchmark/benchmark.js',(err,data) => {
-            if(err){
-                console.log(err);
-            }
-            else {
-                response.write(data);
-                response.end();
-            }
-        })
-    }
-    else if(request.url.includes('/img/chesspieces/wikipedia/')) {
-        response.writeHead(200);
-        readFile(`./client${request.url}`,(err,data)=>{
-            if(err){
-                console.log(err);
-            }
-            else {
-                response.write(data);
-                response.end();
-            }
-        });
+    else if (request.url != "/") {
+        await response.writeFile(request.url);
+        response.end();
     }
     else {
-        // response.writeFile('/client/index.html','text/html',function() {
-        //     this
-        // });
-        readFile(`./client/index.html`,(err,data) => {
-            if(err) {
-                console.log(err);
-            }
-            else {
-                response.write(data);
-                response.end();
-            }
-        });
+        await response.writeFile("/client/index.html");
+        response.end();
     }
 }).listen(port);

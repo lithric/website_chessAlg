@@ -1,3 +1,5 @@
+
+
 #config-container {
     display: grid;
     grid-template-columns: auto auto;
@@ -15,15 +17,7 @@ h3 {
 input {
     width: 50px;
 }
-.highlight-legal {
-    filter: contrast(1) brightness(1.05);
-}
-.highlight-legal[class*=black] {
-    background-color: rgb(135 109 85);
-}
-.highlight-legal[class*=white] {
-    background-color: rgb(195 170 132);
-}
-.legalSquare {
-    filter: grayscale(100%);
+
+chess-board {
+    width: 33%;
 }

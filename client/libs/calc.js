@@ -67,15 +67,10 @@ Function.prototype.unless = function(cond,check_freq=100,delay=100) {
         if (passed || timedOut) {
             break;
         }
-        console.log("ok");
         await sleep(delay);
     }
-    return timedOut;
+    return passed;
 }
-async function test_0() {
-}
-
-test_0();
 /*
 async function unless(condA = async()=>{return Boolean()},condB = async()=>{return Boolean()},timeout=3000,delay=100) {
     var interrupted = false;
