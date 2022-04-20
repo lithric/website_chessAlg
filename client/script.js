@@ -88,30 +88,52 @@ class ChessObject extends Chess{
             await until(async()=>this.display.shadowRoot);
             for (let $square of this.display.shadowRoot.querySelectorAll(".legalSquare")) {
                 $square.classList.remove("legalSquare");
-                $square.classList.remove("legalSquareOverlap0");
+                for (let i=0; i<8;i++) {
+                    $square.classList.remove("legalSquareOverlap"+i);
+                }
                 $square.style.filter = "";
                 $square.style.boxShadow = "";
             }
             let squares = this.#override.moves(options);
+            console.log(squares);
             document.addDebug(
-                "colorChange",
+                "pieceControl",
                 createElement("input",{
-                    type: "range",
-                    min: 0,
-                    max: 255,
-                    name: "red"
+                    type: "text",
+                    value: "e4"
                 })
-            );
+            )
+            let debug = document.getDebug("pieceControl");
+            console.log(pieceMoves("K",debug.value));
             for (let square of squares) {
-                let $square = this.display.shadowRoot.getElementById("square-"+square.slice(-2));
+                let $square = this.display.shadowRoot.getElementById("square-"+square.replace("x","").replace("+","").slice(-2));
                 if($square) {
                     if(!$square.classList.contains("legalSquare")) {
                         $square.classList.add("legalSquare")
-                        $square.style.boxShadow = `inset 0 ${$square.clientHeight+1}px rgba(${document.getDebug("colorChange").value()},0,0,0.3)`;
+                        $square.style.boxShadow = `inset 0 ${$square.clientHeight+1}px rgba(0,0,0,0.3)`;
                     }
                     else {
-                        $square.classList.add("legalSquareOverlap0");
-                        $square.style.boxShadow = `inset 0 ${$square.clientHeight+1}px rgba(0,100,200,0.3)`;
+                        let shadowStyle = "";
+                        let i = 0;
+                        for (i; $square.classList.contains("legalSquareOverlap"+i) && i<=6 ;i++) {
+                        }
+                        $square.classList.add("legalSquareOverlap"+i);
+                        shadowStyle =
+                        i == 0 &&
+                        "rgba(255,0,0,0.3)" ||
+                        i == 1 &&
+                        "rgba(0,255,0,0.3)" ||
+                        i == 2 &&
+                        "rgba(0,0,255,0.3)" ||
+                        i == 3 &&
+                        "rgba(255,0,255,0.3)" ||
+                        i == 4 &&
+                        "rgba(0,255,255,0.3)" ||
+                        i == 5 &&
+                        "rgba(255,255,0,0.3)" ||
+                        i == 6 &&
+                        "rgba(255,255,255,0.3)"
+                        $square.style.boxShadow = `inset 0 ${$square.clientHeight+1}px ${shadowStyle}`;
                     }
                 }
             }
@@ -262,6 +284,6 @@ chess2.display.config = {
 chess1.display.show();
 chess2.display.show();
 
-chess1.link(chess2);
+//chess1.link(chess2);
 
 chess1.highlightLegalMoves();

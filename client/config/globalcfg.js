@@ -112,3 +112,70 @@ console.log(x_0);
     return elm;
 }
 
+function pieceMoves(type,square) {
+    let rAlphaList = ["a","b","c","d","e","f","g","h"];rAlphaList.reverse();
+    let alphaList =  ["a","b","c","d","e","f","g","h"];
+    let rNumberList = [1,2,3,4,5,6,7,8];rNumberList.reverse();
+    let numberList =  [1,2,3,4,5,6,7,8];
+    let [col,row] = square.split("");
+    let i=0;
+    let iCol = alphaList.indexOf(col);
+    let iRow = numberList.indexOf(+row);
+    switch(type) {
+        case "":
+            return [
+                [iCol-1,iRow+1],
+                [iCol+1,iRow+1]
+            ]
+            .filter(v=>v.every(v=>v<8&&v>-1))
+            .map(v=>alphaList[v[0]]+numberList[v[1]]);
+        case "B":
+            let B_ap = alphaList.slice(iCol+1);
+            let B_ar = rAlphaList.slice(-iCol);
+            let B_np = numberList.slice(iRow+1);
+            let B_nr = rNumberList.slice(-iRow);
+            let B_afp = B_ap.slice(0,7-iRow).map((v,i)=>v+B_np[i]);
+            let B_afr = B_ar.slice(0,iRow).map((v,i)=>v+B_nr[i]);
+            let B_adr = B_ar.slice(0,7-iRow).map((v,i)=>v+B_np[i]);
+            let B_adp = B_ap.slice(0,iRow).map((v,i)=>v+B_nr[i]);
+            let returnValue = [...B_afp,...B_afr,...B_adp,...B_adr];
+            return returnValue;
+        case "N":
+            return [
+                [iCol-2,iRow+1],
+                [iCol-2,iRow-1],
+                [iCol-1,iRow+2],
+                [iCol-1,iRow-2],
+                [iCol+1,iRow+2],
+                [iCol+1,iRow-2],
+                [iCol+2,iRow+1],
+                [iCol+2,iRow-1]
+            ]
+            .filter(v=>v.every(v=>v<8&&v>-1))
+            .map((v,i)=>alphaList[v[0]]+numberList[v[1]])
+        case "R":
+            return alphaList.filter(v=>v!=col).map(v=>v+row)
+            .concat(
+                numberList.filter(v=>v!=row).map(v=>col+v)
+            );
+        case "Q":
+            return pieceMoves("B",square)
+            .concat(
+                pieceMoves("R",square)
+            );
+        case "K":
+            return [
+                [iCol-1,iRow+1],
+                [iCol-1,iRow],
+                [iCol-1,iRow-1],
+                [iCol,iRow+1],
+                [iCol,iRow-1],
+                [iCol+1,iRow+1],
+                [iCol+1,iRow],
+                [iCol+1,iRow-1]
+            ]
+            .filter(v=>v.every(v=>v<8&&v>-1))
+            .map(v=>alphaList[v[0]]+numberList[v[1]]);
+    }
+}
+
