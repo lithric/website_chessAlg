@@ -71,9 +71,6 @@ Array.prototype.rekey = function rekey() {
     },{});
 }
 
-var x_0 = Object.getOwnPropertyDescriptors(document.createElement("div"));
-console.log(x_0);
-
 /**
  * 
  * @param {string} str 

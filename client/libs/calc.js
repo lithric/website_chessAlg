@@ -55,10 +55,10 @@ Function.prototype.unless = function(cond,check_freq=100,delay=100) {
  * 
  * @param {function(): Promise<boolean>} cond a function that will eventually return a boolean after some amount of time
  * @param {number} timeout the allowed time for the condition to be true
- * @param {number} delay how often the condition checked
- * @returns if the condition is met before timeout
+ * @param {number} checks the amount of times the condition is checked before timeout
+ * @returns {Promise<boolean>} if the condition was met before timeout
  */
- async function until(cond,timeout=3000,delay=100) {
+ async function until(cond,timeout=3000,checks=30) {
     var passed = false;
     var timedOut = false;
     setTimeout(()=>{timedOut = true},timeout);
@@ -67,7 +67,7 @@ Function.prototype.unless = function(cond,check_freq=100,delay=100) {
         if (passed || timedOut) {
             break;
         }
-        await sleep(delay);
+        await sleep(Math.ceil(timeout/checks));
     }
     return passed;
 }

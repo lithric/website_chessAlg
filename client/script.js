@@ -1,4 +1,6 @@
 function startPosition() {
+    chess1.start();
+    console.log(chess1.started);
 }
 function loadPosition() {
 }
@@ -29,10 +31,6 @@ chess1.move("Ngf3");
 
 chess1.highlightLegalMoves();
 
-chess2.highlightLegalMoves("red");
-
-chess2.highlightLegalMoves("red","black");
-
 chess2.move("e4");
 
 chess2.unlink(chess1);
@@ -42,9 +40,8 @@ chess1.piece("d2").moves();
 
 chess1.piece("d2").moves().highlightTo(chess2);
 
-var virutal = chess2
-.simulate(function(virtual) {
-    virtual.move("Rh4");
+var virutal = chess2.simulate(function(virt) {
+    virt.move("Rh4");
     return "ok";
 })
 */
@@ -62,6 +59,13 @@ class ChessObject extends Chess{
             load: this.load,
             load_pgn: this.load_pgn,
         }
+        this.started = false;
+        this.start = () => {
+            this.started = true;
+        }
+        this.stop = () => {
+            this.started = false;
+        }
         /**@param {ChessObject} chessObj */
         this.link = (chessObj) => {
             this.linkedBoards.add(chessObj);
@@ -72,17 +76,36 @@ class ChessObject extends Chess{
             this.linkedBoards.delete(chessObj);
             chessObj.linkedBoards.delete(this);
         }
-        /**@param {string} e */
-        this.move = function(e,{dropped=false}={}) {
+        this.load = async function(oldFen) {
+            let curFen = ()=>`${this.display.fen()} ${this.display.orientation[0]} - - 0 1`;
+            // wait until the string updates
+            await until(()=>oldFen!=curFen(),10,3);
+            this.#override.load(curFen());
+        }
+        async function* bob() {
+            yield 1;
+            await sleep(100);
+            yield 5;
+        }
+        /**
+         * @param {string} e
+         * @returns 
+         */
+        this.move = async function*(e,{dropped=false}={}) {
             let legal = !!this.#override.move(e.split("-").rekey("from","to"));
-            dropped || this.display.move(e,false);
-            this.load(`${this.display.fen()} ${this.display.orientation[0]} - - 0 1`);
+            if(this.started) {
+                legal && this.display.move(e,false);
+            }
+            else {
+                dropped || this.display.move(e,false);
+            }
+            yield legal;
+            await this.load(`${this.display.fen()} ${this.display.orientation[0]} - - 0 1`);
             if (arguments.length < 3) {
                 for (let board of this.linkedBoards) {
-                    board.move(e,{dropped:false},false);
+                    await board.move(e,{dropped:false},false).next();
                 }
             }
-            return legal;
         }
         this.highlightLegalMoves = async function(options) {
             await until(async()=>this.display.shadowRoot);
@@ -96,13 +119,6 @@ class ChessObject extends Chess{
             }
             let squares = this.#override.moves(options);
             console.log(squares);
-            document.addDebug(
-                "pieceControl",
-                createElement("input",{
-                    type: "text",
-                    value: "e4"
-                })
-            )
             let debug = document.getDebug("pieceControl");
             console.log(pieceMoves("K",debug.value));
             for (let square of squares) {
@@ -110,6 +126,7 @@ class ChessObject extends Chess{
                 if($square) {
                     if(!$square.classList.contains("legalSquare")) {
                         $square.classList.add("legalSquare")
+                        // fix the piece hovering higliight issue
                         $square.style.boxShadow = `inset 0 ${$square.clientHeight+1}px rgba(0,0,0,0.3)`;
                     }
                     else {
@@ -132,7 +149,7 @@ class ChessObject extends Chess{
                         i == 5 &&
                         "rgba(255,255,0,0.3)" ||
                         i == 6 &&
-                        "rgba(255,255,255,0.3)"
+                        "rgba(255,255,255,0.5)"
                         $square.style.boxShadow = `inset 0 ${$square.clientHeight+1}px ${shadowStyle}`;
                     }
                 }
@@ -183,10 +200,15 @@ class ChessObject extends Chess{
                     $root.getElementById("square-"+source)?.part?.add("highlight");
                 }
             },
-            "drop": (e) => {
-                const {source, target} = e.detail;
+            "drop": async(e) => {
+                const {source, target, setAction} = e.detail;
                 document.onmousemove = function() {};
-                this.move(source+"-"+target);
+                let moveGen = this.move(source+"-"+target);
+                let legalMove = await moveGen.next();
+                if(this.started && !legalMove.value) {
+                    setAction("snapback");
+                }
+                await moveGen.next();
                 this.highlightLegalMoves();
                 for (let board of this.linkedBoards) {
                     let $root = board.display.shadowRoot;
@@ -265,6 +287,25 @@ class ChessObject extends Chess{
     }
 }
 
+document.addDebug(
+    "pieceControl",
+    createElement("input",{
+        type: "text",
+        value: "e4"
+    })
+);
+
+createElement("div",{
+    id: "bob",
+    addEventListeners: {
+        focus: function() {}
+    },
+    setAttributes: {
+        uid: "ok",
+        "x-factor": "ok"
+    }
+});
+
 var chess1 = new ChessObject();
 chess1.display.config = {
     draggable:true,
@@ -284,6 +325,6 @@ chess2.display.config = {
 chess1.display.show();
 chess2.display.show();
 
-//chess1.link(chess2);
+chess1.link(chess2);
 
 chess1.highlightLegalMoves();
