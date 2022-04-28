@@ -7,6 +7,9 @@
         "> 1%",
         "last 2 versions"
     ],
+    "scripts": {
+        "start": "node app.js"
+    },
     "dependencies": {
         "@chrisoakman/chessboardjs": "^1.0.0",
         "benchmark": "^2.1.4",

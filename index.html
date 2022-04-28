@@ -1,14 +1,13 @@
 <!DOCTYPE html>
 <html>
     <head>
-        <link rel="stylesheet" href="client/style.css">
+        <link rel="stylesheet" href="style.css">
         <script src="node_modules/jquery/dist/jquery.js"></script>
         <script src="node_modules/chessboard-element/bundled/chessboard-element.bundled.js" type="module"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.12.0/chess.min.js"></script>
         <script src="node_modules/benchmark/benchmark.js"></script>
-        <script src="client/libs/calc.js"></script>
-        <script src="client/config/domcfg.js"></script>
-        <script src="client/config/globalcfg.js"></script>
+        <script src="config/domcfg.js"></script>
+        <script src="config/globalcfg.js"></script>
     </head>
     <body>
         <debug-body>
@@ -28,7 +27,7 @@
                 <span class="lbl-config">fullmoves amount</span><input type="number" id="fullmoves" placeholder="1" onchange="loadPosition()">
                 <span class="lbl-config">to en-passant</span><h3 id="en-passant-display">-</h3><span class="content-tip">press space on the pawn to en-passant</span>
             </div>
-            <script src="client/script.js"></script>
+            <script src="script.js" type="module"></script>
         </div>
     </body>
 </html>

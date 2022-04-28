@@ -1,58 +1,23 @@
 /**
+ * 
+ * @typedef {import("benchmark").Suite} Suite
+ */
+
+/**
  * @param {Number} ms milliseconds the current thread will stop for
  */
-function sleep(ms) {
-    return new Promise((resolve) => {return setTimeout(resolve,ms)});
+function sleep(ms,res) {
+    return new Promise((resolve) => {return setTimeout(()=>{resolve(res)},ms)});
 }
-/**
- * 
- * @param {*} cond the condition to check against
- * @param {*} freq the frequency the condition is checked (cannot be 0)
- * @param {*} delay the delay between the check and the output (cannot be 0)
- * @returns the output of the original function if it is not interrupted, else undefined
- */
-Function.prototype.unless = function(cond = async()=>{return Boolean();},freq=100,delay=100) {
-    // return a function that can be interrupted by another function
-    var thisFunction = async(...args) => {
-        var interrupted = false;
-        var passed = false;
-        var output;
-        this(...args).then(function(val) {
-            if(interrupted) {
-                return;
-            }
-            else{
-                passed = true;
-                output = val;
-            }
-        });
-        cond().then(async function back(val) {
-            if(val && !passed){
-                interrupted = true;
-            }
-            else if (passed) {
-                return;
-            }
-            else {
-                await sleep(freq);
-                cond().then(back);
-            }
-        });
-        while(!passed && !interrupted) {
-            await sleep(delay);
-        }
-        return output;
-    }
-    return thisFunction;
-}
+
 /**
  * 
  * @param {function(): Promise<boolean>} cond a function that will eventually return a boolean after some amount of time
- * @param {Number} timeout the allowed time for the condition to be true
- * @param {Number} delay how often the condition checked
- * @returns if the condition is met before timeout
+ * @param {number} timeout the allowed time for the condition to be true
+ * @param {number} checks the amount of times the condition is checked before timeout
+ * @returns {Promise<boolean>} if the condition was met before timeout
  */
- async function until(cond,timeout=3000,delay=100) {
+ async function until(cond,timeout=3000,checks=30) {
     var passed = false;
     var timedOut = false;
     setTimeout(()=>{timedOut = true},timeout);
@@ -61,7 +26,7 @@ Function.prototype.unless = function(cond = async()=>{return Boolean();},freq=10
         if (passed || timedOut) {
             break;
         }
-        await sleep(delay);
+        await sleep(Math.ceil(timeout/checks));
     }
     return passed;
 }
@@ -139,4 +104,6 @@ class Calc extends Array {
     }
 }
 
-export {sleep,until,Calc};
+export{Calc,sleep,until};
+
+// await condA.unless(()=>{condB()})()

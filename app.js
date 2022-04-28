@@ -5,12 +5,9 @@ const fs = require('fs');
 const readFile = fs.readFile;
 const mime = require("mime-types");
 
-
-var serverDir = __dirname.replace("\\server","");
-console.log(serverDir);
 ServerResponse.prototype.readFile = function(reqUrl) {
     return new Promise((resolve,reject) => {
-        readFile(serverDir+reqUrl,(err,data) => {
+        readFile(__dirname+reqUrl,(err,data) => {
             if (err) {
                 reject(err);
             }
@@ -31,6 +28,7 @@ ServerResponse.prototype.writeFile = async function(reqUrl) {
 }
 
 const port = 8000;
+const hostname = "localhost";
 
 const server = createServer(async(request, response) => {
     console.log(request.url);
@@ -43,7 +41,8 @@ const server = createServer(async(request, response) => {
         response.end();
     }
     else {
-        await response.writeFile("/client/index.html");
+        await response.writeFile("/index.html");
         response.end();
     }
-}).listen(port);
+}).listen(port,hostname);
+console.log(`server started at-> http://${hostname}:${port}/`);

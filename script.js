@@ -1,10 +1,5 @@
-function startPosition() {
-    chess1.start();
-    console.log(chess1.started);
-}
-function loadPosition() {
-}
-
+//import { Chess } from "chess.js";
+import {until} from "./libs/calc.js"
 /*
 a board that represents what is actually there
 a board that represents a hovered piece
@@ -60,11 +55,24 @@ class ChessObject extends Chess{
             load_pgn: this.load_pgn,
         }
         this.started = false;
-        this.start = () => {
+        this.focusedSquare = "";
+        this.focusedPiece = "";
+        this.focusedColor = "";
+        this.start = ({origin = true} = {}) => {
             this.started = true;
+            if (origin) {
+                for(let board of this.linkedBoards) {
+                    board.start({origin: false});
+                }
+            }
         }
-        this.stop = () => {
+        this.stop = ({origin = true} = {}) => {
             this.started = false;
+            if (origin) {
+                for (let board of this.linkedBoards) {
+                    board.stop({origin: false});
+                }
+            }
         }
         /**@param {ChessObject} chessObj */
         this.link = (chessObj) => {
@@ -77,35 +85,49 @@ class ChessObject extends Chess{
             chessObj.linkedBoards.delete(this);
         }
         this.load = async function(oldFen) {
-            let curFen = ()=>`${this.display.fen()} ${this.display.orientation[0]} - - 0 1`;
+            let curFen = ()=>`${this.display.fen()} ${this.orientation} - - 0 1`;
             // wait until the string updates
             await until(()=>oldFen!=curFen(),10,3);
             this.#override.load(curFen());
         }
-        async function* bob() {
-            yield 1;
-            await sleep(100);
-            yield 5;
+        //* Implement simulated boards
+        this.simulate = function(callback,{copyBoard=false,copyFocused=true,orientation}={}) {
+            orientation ??= this.orientation;
+            let simul = new Chess();
+            simul.clear();
+            if (copyBoard) {
+                simul.load(this.fen());
+            }
+            if (copyFocused) {
+                simul.put({type:this.focusedPiece,color:this.focusedColor}, this.focusedSquare);
+            }
         }
         /**
          * @param {string} e
          * @returns 
          */
-        this.move = async function*(e,{dropped=false}={}) {
-            let legal = !!this.#override.move(e.split("-").rekey("from","to"));
-            if(this.started) {
-                legal && this.display.move(e,false);
+        this.move = async function(e,{dropped=false,origin=true}={}) {
+            this.#override.move(e.split("-").rekey("from","to"));
+            dropped || this.display.move(e,false);
+            if (this.started) {
+                this.orientation = this.orientation === "w" ? "b":"w";
             }
-            else {
-                dropped || this.display.move(e,false);
-            }
-            yield legal;
-            await this.load(`${this.display.fen()} ${this.display.orientation[0]} - - 0 1`);
-            if (arguments.length < 3) {
+            await this.load(`${this.display.fen()} ${this.orientation} - - 0 1`);
+            if (origin) {
                 for (let board of this.linkedBoards) {
-                    await board.move(e,{dropped:false},false).next();
+                    await board.move(e,{dropped:false,origin: false});
                 }
             }
+        }
+        this.moveIsLegal = function(e) {
+            let move = e.split("-").rekey("from","to");
+            let legalMoves = this.#override.moves({square: move.from, verbose: true});
+            let i = 0;
+            for (let legalMove of legalMoves) {
+                if (legalMove.to === move.to) break;
+                i++;
+            }
+            return i<legalMoves.length;
         }
         this.highlightLegalMoves = async function(options) {
             await until(async()=>this.display.shadowRoot);
@@ -163,6 +185,9 @@ class ChessObject extends Chess{
         let action = {
             "drag-start": (e) => {
                 const {source, piece, position, orientation} = e.detail;
+                this.focusedSquare = source;
+                this.focusedPiece = piece.slice(1);
+                this.focusedColor = piece.slice(0,1);
                 let $pieceRef = this.display.shadowRoot.getElementById("square-"+source);
                 /**@type {Array<HTMLImageElement>} */
                 let $imgs = [];
@@ -203,12 +228,13 @@ class ChessObject extends Chess{
             "drop": async(e) => {
                 const {source, target, setAction} = e.detail;
                 document.onmousemove = function() {};
-                let moveGen = this.move(source+"-"+target);
-                let legalMove = await moveGen.next();
-                if(this.started && !legalMove.value) {
+                let legalMove = this.moveIsLegal(source+"-"+target);
+                if (this.started && !legalMove) {
                     setAction("snapback");
                 }
-                await moveGen.next();
+                else {
+                    await this.move(source+"-"+target);
+                }
                 this.highlightLegalMoves();
                 for (let board of this.linkedBoards) {
                     let $root = board.display.shadowRoot;
@@ -239,6 +265,7 @@ class ChessObject extends Chess{
                 ...action
             }
         });
+        this.orientation = this.display.orientation[0];
         Object.defineProperties(this.display,{
             config: {
                 get: ()=>{
@@ -328,3 +355,10 @@ chess2.display.show();
 chess1.link(chess2);
 
 chess1.highlightLegalMoves();
+
+window.startPosition = function() {
+    chess1.start();
+    console.log(chess1.started);
+}
+window.loadPosition = function() {
+}
