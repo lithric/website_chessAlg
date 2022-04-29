@@ -55,6 +55,7 @@ class ChessObject extends Chess{
             load_pgn: this.load_pgn,
         }
         this.started = false;
+        this.highlightLM = false;
         this.focusedSquare = "";
         this.focusedPiece = "";
         this.focusedColor = "";
@@ -74,6 +75,9 @@ class ChessObject extends Chess{
                 }
             }
         }
+        this.ondrop = [];
+        this.ondragstart = [];
+        this.ondragmove = [];
         /**@param {ChessObject} chessObj */
         this.link = (chessObj) => {
             this.linkedBoards.add(chessObj);
@@ -90,8 +94,57 @@ class ChessObject extends Chess{
             await until(()=>oldFen!=curFen(),10,3);
             this.#override.load(curFen());
         }
+        this.highlight =async function(squares) {
+            await until(async()=>this.display.shadowRoot);
+            for (let $square of this.display.shadowRoot.querySelectorAll(".legalSquare")) {
+                $square.classList.remove("legalSquare");
+                for (let i=0; i<8;i++) {
+                    $square.classList.remove("legalSquareOverlap"+i);
+                }
+                $square.style.filter = "";
+                $square.style.boxShadow = "";
+            }
+            for (let square of squares) {
+                let $square = this.display.shadowRoot.getElementById("square-"+square.replace("x","").replace("+","").slice(-2));
+                if($square) {
+                    if(!$square.classList.contains("legalSquare")) {
+                        $square.classList.add("legalSquare")
+                        // fix the piece hovering higliight issue
+                        $square.style.boxShadow = `inset 0 ${$square.clientHeight+1}px rgba(0,0,0,0.3)`;
+                    }
+                    else {
+                        let shadowStyle = "";
+                        let i = 0;
+                        for (i; $square.classList.contains("legalSquareOverlap"+i) && i<=6 ;i++) {
+                        }
+                        $square.classList.add("legalSquareOverlap"+i);
+                        shadowStyle =
+                        i == 0 &&
+                        "rgba(255,0,0,0.3)" ||
+                        i == 1 &&
+                        "rgba(0,255,0,0.3)" ||
+                        i == 2 &&
+                        "rgba(0,0,255,0.3)" ||
+                        i == 3 &&
+                        "rgba(255,0,255,0.3)" ||
+                        i == 4 &&
+                        "rgba(0,255,255,0.3)" ||
+                        i == 5 &&
+                        "rgba(255,255,0,0.3)" ||
+                        i == 6 &&
+                        "rgba(255,255,255,0.5)"
+                        $square.style.boxShadow = `inset 0 ${$square.clientHeight+1}px ${shadowStyle}`;
+                    }
+                }
+            }
+            if (arguments.length < 2) {
+                for (let board of this.linkedBoards) {
+                    board.highlight(squares,false);
+                }
+            }
+        }
         //* Implement simulated boards
-        this.simulate = function(callback,{copyBoard=false,copyFocused=true,orientation}={}) {
+        this.simulate = function(callback,{copyBoard=false,copyFocused=false,origin=true,orientation}={}) {
             orientation ??= this.orientation;
             let simul = new Chess();
             simul.clear();
@@ -101,6 +154,9 @@ class ChessObject extends Chess{
             if (copyFocused) {
                 simul.put({type:this.focusedPiece,color:this.focusedColor}, this.focusedSquare);
             }
+            let stuff = callback.bind(this)(simul);
+            console.log(stuff);
+            return stuff;
         }
         /**
          * @param {string} e
@@ -140,7 +196,7 @@ class ChessObject extends Chess{
                 $square.style.boxShadow = "";
             }
             let squares = this.#override.moves(options);
-            console.log(squares);
+            this.highlightLM = true;
             let debug = document.getDebug("pieceControl");
             console.log(pieceMoves("K",debug.value));
             for (let square of squares) {
@@ -192,6 +248,9 @@ class ChessObject extends Chess{
                 /**@type {Array<HTMLImageElement>} */
                 let $imgs = [];
                 let i=0;
+                for  (let func of this.ondragstart) {
+                    func.bind(this)(e);
+                }
                 for (let board of this.linkedBoards) {
                     let $piece = board.display.shadowRoot.getElementById("square-"+source);
                     if($piece) {
@@ -217,7 +276,13 @@ class ChessObject extends Chess{
                 }
             },
             "drag-move": (e) => {
-                const {newLocation, oldLocation, source} = e.detail;
+                const {newLocation, oldLocation, source, piece} = e.detail;
+                this.focusedSquare = newLocation;
+                this.focusedPiece = piece.slice(1);
+                this.focusedColor = piece.slice(0,1);
+                for (let func of this.ondragmove) {
+                    func.bind(this)(e);
+                }
                 for (let board of this.linkedBoards) {
                     let $root = board.display.shadowRoot;
                     $root.getElementById("square-"+oldLocation)?.part?.remove("highlight");
@@ -226,7 +291,10 @@ class ChessObject extends Chess{
                 }
             },
             "drop": async(e) => {
-                const {source, target, setAction} = e.detail;
+                const {source, target, setAction, piece} = e.detail;
+                this.focusedSquare = target;
+                this.focusedPiece = piece.slice(1);
+                this.focusedColor = piece.slice(0,1);
                 document.onmousemove = function() {};
                 let legalMove = this.moveIsLegal(source+"-"+target);
                 if (this.started && !legalMove) {
@@ -235,7 +303,9 @@ class ChessObject extends Chess{
                 else {
                     await this.move(source+"-"+target);
                 }
-                this.highlightLegalMoves();
+                for (let func of this.ondrop) {
+                    func.bind(this)(e);
+                }
                 for (let board of this.linkedBoards) {
                     let $root = board.display.shadowRoot;
                     let $piece = $root.getElementById("square-"+source);
@@ -248,7 +318,6 @@ class ChessObject extends Chess{
                             $img.style.zIndex = 0;
                         }
                     }
-                    console.log(board.ascii());
                 }
             }
         }
@@ -354,7 +423,39 @@ chess2.display.show();
 
 chess1.link(chess2);
 
-chess1.highlightLegalMoves();
+chess1.ondragstart.push(
+    function(e) {
+        const {source} = e.detail;
+        chess1.highlight(
+            chess1.simulate(
+                function(board) {
+                    board.load(board.fen());
+                    return board.moves({square: source});
+                }
+                ,{copyBoard: true}
+            )
+        );
+    }
+)
+
+chess1.ondragmove.push(
+    function(e) {
+        const {newLocation} = e.detail;
+        chess1.highlight(
+            chess1.simulate(
+                function(board) {
+                    let fen = flipCase(this.fen().slice(0,-13))+this.fen().slice(13);
+                    console.log(fen);
+                    board.load(this.fen());
+                    board.put({type: this.focusedPiece, color: this.focusedColor}, this.focusedSquare);
+                    board.load(board.fen());
+                    return board.moves({square: newLocation});
+                }
+                ,{copyFocused: false}
+            )
+        );
+    }
+)
 
 window.startPosition = function() {
     chess1.start();
