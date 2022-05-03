@@ -59,6 +59,7 @@ class ChessObject extends Chess{
         this.focusedSquare = "";
         this.focusedPiece = "";
         this.focusedColor = "";
+        this.focusedElement;
         this.start = ({origin = true} = {}) => {
             this.started = true;
             if (origin) {
@@ -91,8 +92,17 @@ class ChessObject extends Chess{
         this.load = async function(oldFen) {
             let curFen = ()=>`${this.display.fen()} ${this.orientation} - - 0 1`;
             // wait until the string updates
-            await until(()=>oldFen!=curFen(),10,3);
-            this.#override.load(curFen());
+            if (oldFen != curFen()) {
+                this.display.setPosition(oldFen,false);
+            }
+            else {
+                await until(()=>oldFen!=curFen(),10,3);
+                this.#override.load(curFen());
+            }
+        }
+        this.put = async function({type, color}, square) {
+            this.#override.put({type: type, color: color},square);
+            this.load(this.fen());
         }
         this.highlight =async function(squares) {
             await until(async()=>this.display.shadowRoot);
@@ -171,7 +181,9 @@ class ChessObject extends Chess{
             await this.load(`${this.display.fen()} ${this.orientation} - - 0 1`);
             if (origin) {
                 for (let board of this.linkedBoards) {
-                    await board.move(e,{dropped:false,origin: false});
+                    if (!this.started || board.moveIsLegal(e)) {
+                        await board.move(e,{dropped:false,origin: false});
+                    }
                 }
             }
         }
@@ -200,7 +212,7 @@ class ChessObject extends Chess{
             let debug = document.getDebug("pieceControl");
             console.log(pieceMoves("K",debug.value));
             for (let square of squares) {
-                let $square = this.display.shadowRoot.getElementById("square-"+square.replace("x","").replace("+","").slice(-2));
+                let $square = this.display.shadowRoot.getElementById("square-"+square.replace("x","").replace("+","").replace("#","").slice(-2));
                 if($square) {
                     if(!$square.classList.contains("legalSquare")) {
                         $square.classList.add("legalSquare")
@@ -245,6 +257,7 @@ class ChessObject extends Chess{
                 this.focusedPiece = piece.slice(1);
                 this.focusedColor = piece.slice(0,1);
                 let $pieceRef = this.display.shadowRoot.getElementById("square-"+source);
+                this.focusedElement = $pieceRef?.firstElementChild;
                 /**@type {Array<HTMLImageElement>} */
                 let $imgs = [];
                 let i=0;
@@ -302,9 +315,10 @@ class ChessObject extends Chess{
                 }
                 else {
                     await this.move(source+"-"+target);
+                    this.focusedElement = this.display.shadowRoot.getElementById("square-"+target)?.firstElementChild;
                 }
                 for (let func of this.ondrop) {
-                    func.bind(this)(e);
+                    await func.bind(this)(e);
                 }
                 for (let board of this.linkedBoards) {
                     let $root = board.display.shadowRoot;
@@ -440,22 +454,56 @@ chess1.ondragstart.push(
 
 chess1.ondragmove.push(
     function(e) {
-        const {newLocation} = e.detail;
+        const {newLocation, source} = e.detail;
         chess1.highlight(
             chess1.simulate(
                 function(board) {
-                    let fen = flipCase(this.fen().slice(0,-13))+this.fen().slice(13);
-                    console.log(fen);
-                    board.load(this.fen());
-                    board.put({type: this.focusedPiece, color: this.focusedColor}, this.focusedSquare);
-                    board.load(board.fen());
-                    return board.moves({square: newLocation});
+                        let fen = flipCase(this.fen().slice(0,-13))+this.fen().slice(13);
+                        console.log(fen);
+                        if (!this.started) {
+                            board.load(this.fen());
+                            board.put({type: this.focusedPiece, color: this.focusedColor}, this.focusedSquare);
+                            board.load(board.fen());
+                        }
+                        if (!this.started) {
+                            return board.moves({square: newLocation});
+                        }
+                        else {
+                            console.log(source);
+                            board.load(this.fen());
+                            board.load(board.fen());
+                            return board.moves({square: source});
+                        }
                 }
                 ,{copyFocused: false}
             )
         );
     }
 )
+
+// fix add pawn promotion
+chess1.ondrop.push(
+    function(e) {
+        chess1.highlight([]);
+    },
+    async function(e) {
+        if (this.focusedPiece === "P") {
+            if (this.focusedColor === "w" && this.focusedSquare.includes("8")) {
+                this.focusedElement.appendChild(createElement("button",{
+                    style: {
+                        width: "100px",
+                        height: "200px",
+                        position: "absolute"
+                    }
+                }));
+            }
+            else if (this.focusedColor === "b" && this.focusedSquare.includes("1")) {
+            }
+        }
+    }
+)
+
+//chess2.put({type: "Q", color: "w"}, "e4");
 
 window.startPosition = function() {
     chess1.start();
