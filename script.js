@@ -342,7 +342,7 @@ class ChessObject extends Chess{
             id:"ChessObject:"+this.chessObjectId,
             style: {
                 width:size,
-                display:"none",
+                display:"none"
             },
             addEventListeners: {
                 ...action
@@ -489,17 +489,29 @@ chess1.ondrop.push(
     async function(e) {
         if (this.focusedPiece === "P") {
             if (this.focusedColor === "w" && this.focusedSquare.includes("8")) {
-                this.focusedElement.appendChild(createElement("button",{
-                    style: {
-                        width: "100px",
-                        height: "200px",
-                        position: "absolute"
-                    }
-                }));
             }
             else if (this.focusedColor === "b" && this.focusedSquare.includes("1")) {
             }
         }
+    },
+    async function(e) {
+        await until(()=>this.focusedElement.getBoundingClientRect().left != 0,1000,5);
+        const rect = this.focusedElement.getBoundingClientRect();
+        const left = rect.left;
+        const top = rect.top;
+        const height = rect.height;
+        const width = rect.width;
+        console.log(rect);
+        let $test = createElement("button",{
+                style: {
+                    top: `${top-height*1.5}px`,
+                    left: `${left-width/2}px`,
+                    width: "100px",
+                    height: "50px",
+                    position: "absolute",
+                }
+            });
+        this.display.shadowRoot.appendChild($test);
     }
 )
 

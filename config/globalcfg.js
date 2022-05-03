@@ -78,6 +78,13 @@ Array.prototype.rekey = function rekey() {
  */
  function createElement(str="div",obj= {}) {
     var elm = document.createElement(str);
+    var reserved = Object.fromEntries([
+        "children",
+        "addEventListeners",
+        "setAttributes",
+        "style",
+        "bond"
+    ].map(v=>[v,0]));
     if (obj.addEventListeners) {
         for (let key in obj.addEventListeners) {
             elm.addEventListener(key,obj.addEventListeners[key]);
@@ -93,11 +100,12 @@ Array.prototype.rekey = function rekey() {
             elm.style[key] = obj.style[key];
         }
     }
+    if (obj.bond) {
+
+    }
     for (let key in obj) {
-        if(key != "children" && 
-        key != "addEventListeners" &&
-        key != "setAttributes" &&
-        key != "style") {
+        if(key in reserved) {}
+        else {
             elm[key] = obj[key];
         }
     }

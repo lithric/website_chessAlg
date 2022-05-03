@@ -19,5 +19,6 @@ input {
 }
 
 chess-board {
+    position: relative;
     width: 33%;
 }
