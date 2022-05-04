@@ -53,6 +53,7 @@ class ChessObject extends Chess{
             put: this.put,
             load: this.load,
             load_pgn: this.load_pgn,
+            undo: this.undo,
         }
         this.started = false;
         this.highlightLM = false;
@@ -65,6 +66,17 @@ class ChessObject extends Chess{
             if (origin) {
                 for(let board of this.linkedBoards) {
                     board.start({origin: false});
+                }
+            }
+        }
+        this.undo = ({origin = true} = {}) => {
+            let move = this.#override.undo();
+            if (move) {
+                this.display.move(move.to+"-"+move.from);
+                for (let board of this.linkedBoards) {
+                    if (origin) {
+                        board.undo({origin: false});
+                    }
                 }
             }
         }
@@ -173,12 +185,16 @@ class ChessObject extends Chess{
          * @returns 
          */
         this.move = async function(e,{dropped=false,origin=true}={}) {
+            try {
             this.#override.move(e.split("-").rekey("from","to"));
+            } catch{};
             dropped || this.display.move(e,false);
             if (this.started) {
                 this.orientation = this.orientation === "w" ? "b":"w";
             }
-            await this.load(`${this.display.fen()} ${this.orientation} - - 0 1`);
+            else {
+                await this.load(`${this.display.fen()} ${this.orientation} - - 0 1`);
+            }
             if (origin) {
                 for (let board of this.linkedBoards) {
                     if (!this.started || board.moveIsLegal(e)) {
@@ -189,7 +205,10 @@ class ChessObject extends Chess{
         }
         this.moveIsLegal = function(e) {
             let move = e.split("-").rekey("from","to");
-            let legalMoves = this.#override.moves({square: move.from, verbose: true});
+            let legalMoves = [];
+            try {
+            legalMoves = this.#override.moves({square: move.from, verbose: true});
+            } catch{};
             let i = 0;
             for (let legalMove of legalMoves) {
                 if (legalMove.to === move.to) break;
@@ -489,29 +508,48 @@ chess1.ondrop.push(
     async function(e) {
         if (this.focusedPiece === "P") {
             if (this.focusedColor === "w" && this.focusedSquare.includes("8")) {
+                await until(()=>this.focusedElement.getBoundingClientRect().left != 0,1000,5);
+                const rect = this.focusedElement.getBoundingClientRect();
+                const left = rect.left;
+                const top = rect.top;
+                const height = rect.height;
+                const width = rect.width;
+                console.log(rect);
+                let $test = createElement("div",{
+                        style: {
+                            top: `${top-height*1.5}px`,
+                            left: `${left-width/2}px`,
+                            width: "200px",
+                            height: "50px",
+                            position: "absolute",
+                            backgroundColor: "grey",
+                            display: "flex"
+                        },
+                        children: [
+                            this.display.shadowRoot.getElementById("spare-piece-wQ").cloneNode(true),
+                            this.display.shadowRoot.getElementById("spare-piece-wR").cloneNode(true),
+                            this.display.shadowRoot.getElementById("spare-piece-wB").cloneNode(true),
+                            this.display.shadowRoot.getElementById("spare-piece-wN").cloneNode(true)
+                        ]
+                    });
+                for (let $elm of $test.children) {
+                    $elm.addEventListener("click",() => {
+                        this.put({type: $elm.id.slice(-1), color: "w"}, this.focusedSquare);
+                        for (let board of this.linkedBoards) {
+                            board.put({type: $elm.id.slice(-1), color: "w"}, this.focusedSquare);
+                            console.log(board.ascii());
+                            board.load(board.fen());
+                        }
+                        $elm.parentElement.remove();
+                    })
+                }
+                this.display.shadowRoot.appendChild($test);
             }
             else if (this.focusedColor === "b" && this.focusedSquare.includes("1")) {
             }
         }
     },
     async function(e) {
-        await until(()=>this.focusedElement.getBoundingClientRect().left != 0,1000,5);
-        const rect = this.focusedElement.getBoundingClientRect();
-        const left = rect.left;
-        const top = rect.top;
-        const height = rect.height;
-        const width = rect.width;
-        console.log(rect);
-        let $test = createElement("button",{
-                style: {
-                    top: `${top-height*1.5}px`,
-                    left: `${left-width/2}px`,
-                    width: "100px",
-                    height: "50px",
-                    position: "absolute",
-                }
-            });
-        this.display.shadowRoot.appendChild($test);
     }
 )
 
@@ -523,3 +561,9 @@ window.startPosition = function() {
 }
 window.loadPosition = function() {
 }
+
+document.addEventListener("keypress", function(e) {
+    if (e.key === "z") {
+        chess1.undo();
+    }
+})
