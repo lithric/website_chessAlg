@@ -69,16 +69,17 @@ class ChessObject extends Chess{
                 }
             }
         }
-        this.undo = ({origin = true} = {}) => {
+        this.undo = ({origin = true,animation = true} = {}) => {
             let move = this.#override.undo();
             if (move) {
-                this.display.move(move.to+"-"+move.from);
+                this.display.move(move.to+"-"+move.from,animation);
                 for (let board of this.linkedBoards) {
                     if (origin) {
                         board.undo({origin: false});
                     }
                 }
             }
+            return move;
         }
         this.stop = ({origin = true} = {}) => {
             this.started = false;
@@ -184,21 +185,28 @@ class ChessObject extends Chess{
          * @param {string} e
          * @returns 
          */
-        this.move = async function(e,{dropped=false,origin=true}={}) {
+        this.move = async function(e,{dropped=false,origin=true,animation=false,data = {}}={}) {
+            let move = e.split("-").rekey("from","to");
+            for (let key in data) {
+                move[key] = data[key];
+            }
             try {
-            this.#override.move(e.split("-").rekey("from","to"));
+            this.#override.move(move);
             } catch{};
-            dropped || this.display.move(e,false);
+            dropped || this.display.move(e,animation);
             if (this.started) {
                 this.orientation = this.orientation === "w" ? "b":"w";
             }
             else {
                 await this.load(`${this.display.fen()} ${this.orientation} - - 0 1`);
             }
+            if (data.promotion) {
+                console.log(this.ascii());
+            }
             if (origin) {
                 for (let board of this.linkedBoards) {
                     if (!this.started || board.moveIsLegal(e)) {
-                        await board.move(e,{dropped:false,origin: false});
+                        await board.move(e,{dropped:false,origin: false,animation: animation, data: data});
                     }
                 }
             }
@@ -533,8 +541,12 @@ chess1.ondrop.push(
                         ]
                     });
                 for (let $elm of $test.children) {
-                    $elm.addEventListener("click",() => {
-                        this.put({type: $elm.id.slice(-1), color: "w"}, this.focusedSquare);
+                    $elm.addEventListener("click",async () => {
+                        let move = this.undo();
+                        await this.move(move.from+"-"+move.to,{data: {
+                            promotion: $elm.id.slice(-1)
+                        }});
+                        // this.put({type: $elm.id.slice(-1), color: "w"}, this.focusedSquare);
                         for (let board of this.linkedBoards) {
                             board.put({type: $elm.id.slice(-1), color: "w"}, this.focusedSquare);
                             console.log(board.ascii());
