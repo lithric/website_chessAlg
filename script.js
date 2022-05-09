@@ -61,6 +61,7 @@ class ChessObject extends Chess{
         this.focusedPiece = "";
         this.focusedColor = "";
         this.focusedElement;
+        this.isMoving = false;
         this.start = ({origin = true} = {}) => {
             this.started = true;
             if (origin) {
@@ -69,13 +70,13 @@ class ChessObject extends Chess{
                 }
             }
         }
-        this.undo = ({origin = true,animation = true} = {}) => {
+        this.undo = ({origin = true,animation = true, display=true} = {}) => {
             let move = this.#override.undo();
             if (move) {
-                this.display.move(move.to+"-"+move.from,animation);
-                for (let board of this.linkedBoards) {
-                    if (origin) {
-                        board.undo({origin: false});
+                display && this.display.move(move.to+"-"+move.from,animation);
+                if(origin) {
+                    for (let board of this.linkedBoards) {
+                        board.undo({origin: false, animation: animation, display: display});
                     }
                 }
             }
@@ -112,6 +113,9 @@ class ChessObject extends Chess{
                 await until(()=>oldFen!=curFen(),10,3);
                 this.#override.load(curFen());
             }
+        }
+        this.updateDisplay = function() {
+            this.display.setPosition(this.fen(),false);
         }
         this.put = async function({type, color}, square) {
             this.#override.put({type: type, color: color},square);
@@ -185,15 +189,16 @@ class ChessObject extends Chess{
          * @param {string} e
          * @returns 
          */
-        this.move = async function(e,{dropped=false,origin=true,animation=false,data = {}}={}) {
+        this.move = async function(e,{dropped=false,origin=true,animation=false,display=true,data = {}}={}) {
             let move = e.split("-").rekey("from","to");
             for (let key in data) {
                 move[key] = data[key];
             }
             try {
-            this.#override.move(move);
+                console.log("ok",move);
+                this.#override.move(move);
             } catch{};
-            dropped || this.display.move(e,animation);
+            dropped || display && (this.isMoving = true, this.display.move(e,animation));
             if (this.started) {
                 this.orientation = this.orientation === "w" ? "b":"w";
             }
@@ -203,6 +208,7 @@ class ChessObject extends Chess{
             if (data.promotion) {
                 console.log(this.ascii());
             }
+            this.isMoving = false;
             if (origin) {
                 for (let board of this.linkedBoards) {
                     if (!this.started || board.moveIsLegal(e)) {
@@ -542,14 +548,13 @@ chess1.ondrop.push(
                     });
                 for (let $elm of $test.children) {
                     $elm.addEventListener("click",async () => {
-                        let move = this.undo();
-                        await this.move(move.from+"-"+move.to,{data: {
+                        let move = this.undo({display: false});
+                        await this.move(this.focusedSquare.slice(0,1)+"7-"+this.focusedSquare,{data: {
                             promotion: $elm.id.slice(-1)
                         }});
                         // this.put({type: $elm.id.slice(-1), color: "w"}, this.focusedSquare);
                         for (let board of this.linkedBoards) {
                             board.put({type: $elm.id.slice(-1), color: "w"}, this.focusedSquare);
-                            console.log(board.ascii());
                             board.load(board.fen());
                         }
                         $elm.parentElement.remove();
