@@ -44,6 +44,11 @@ function getMousePosFrom(elm) {
     return returnValue;
 }
 
+Array.prototype.random = function() {
+    let randIndex = Math.floor(Math.random()*this.length);
+    return this[randIndex];
+}
+
 Array.prototype.rekey = function rekey() {
     var base = {...this};
     return [...arguments].reduce((acc,cur,i)=>{

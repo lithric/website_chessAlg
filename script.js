@@ -1,5 +1,5 @@
 //import { Chess } from "chess.js";
-import {until} from "./libs/calc.js"
+import {sleep, until} from "./libs/calc.js"
 /*
 a board that represents what is actually there
 a board that represents a hovered piece
@@ -42,12 +42,13 @@ var virutal = chess2.simulate(function(virt) {
 */
 
 
-class ChessObject extends Chess{
+class ChessObject extends Chess {
     #override;
     constructor({size = "400px",title="untitled"} = {}) {
         super();
         this.#override = {
             move: this.move,
+            fen: this.fen,
             moves: this.moves,
             clear: this.clear,
             put: this.put,
@@ -60,6 +61,61 @@ class ChessObject extends Chess{
         this.focusedPiece = "";
         this.focusedColor = "";
         this.focusedElement;
+        /**
+         * 
+         * @param {Object} options
+         * @param {boolean} options.flip
+         * @param {boolean|string} options.meta
+         * @returns 
+         */
+        this.fen = (options = {}) => {
+            let fen = this.#override.fen();
+            let pFen = fen.split(' ').rekey("position","orientation","castling","enPassant","halfMoves","fullMoves");
+            let finalFen = ' ';
+            /*
+            castling  meta
+            orientation meta
+            half-move meta
+            full-move meta
+            */
+            if (options.meta ?? true) {
+                let meta = options.meta ?? "position, orientation, castling, enPassant, halfMoves, fullMoves";
+                if (meta.includes("position")) {
+                    finalFen += pFen.position + " ";
+                }
+                if (meta.includes("orientation")) {
+                    finalFen += pFen.orientation + " ";
+                }
+                if (meta.includes("castling")) {
+                    finalFen += pFen.castling + " ";
+                }
+                if (meta.includes("enPassant")) {
+                    finalFen += pFen.enPassant + " ";
+                }
+                if (meta.includes("halfMoves")) {
+                    finalFen += pFen.halfMoves + " ";
+                }
+                if (meta.includes("fullMoves")) {
+                    finalFen += pFen.fullMoves + " ";
+                }
+                finalFen = finalFen.trimEnd();
+            }
+            else {
+                if (options.flip) {
+                    finalFen = flipCase(pFen.position)+finalFen;
+                }
+                else {
+                    finalFen = pFen.position+finalFen;
+                }
+            }
+            finalFen = finalFen.trim();
+            return finalFen;
+        }
+        this.getRandomMove = () => {
+            let legalMoves = this.moves({verbose: true});
+            let legalMove = legalMoves.random();
+            return legalMove.from + '-' + legalMove.to
+        }
         this.start = ({origin = true} = {}) => {
             this.started = true;
             if (origin) {
@@ -188,8 +244,11 @@ class ChessObject extends Chess{
          * @param {string} e
          * @returns 
          */
-        this.move = async function(e,{dropped=false,origin=true,animation=false,display=true,data = {},linked = true}={}) {
+        this.move = async function(e,{dropped=false,origin=true,animation=false,display=true,data = {},linked = true,updateDisplay=false}={}) {
             let move = e.split("-").rekey("from","to");
+            if (e.includes("O")) {
+                move = e;
+            }
             for (let key in data) {
                 move[key] = data[key];
             }
@@ -203,10 +262,13 @@ class ChessObject extends Chess{
             else {
                 await this.load(`${this.display.fen()} ${this.orientation} - - 0 1`);
             }
+            if (updateDisplay) {
+                this.updateDisplay();
+            }
             if (origin && linked) {
                 for (let board of this.linkedBoards) {
                     if (!this.started || board.moveIsLegal(e)) {
-                        await board.move(e,{dropped:false,origin: false,animation: animation, data: data});
+                        await board.move(e,{dropped:false,origin: false,animation: animation, data: data, updateDisplay: updateDisplay});
                     }
                 }
             }
@@ -493,10 +555,12 @@ chess1.ondragmove.push(
      */
     function(e) {
         const {newLocation, source} = e.detail;
+        // fix castling is not being highlighted
         chess1.highlight(
             chess1.simulate(
                 function(board) {
-                        let fen = flipCase(this.fen().slice(0,-13))+this.fen().slice(13);
+                        let fen = flipCase(this.fen().slice(0,-13))+this.fen().slice(-13);
+                        console.log(fen);
                         if (!this.started) {
                             board.load(this.fen());
                             board.put({type: this.focusedPiece, color: this.focusedColor}, this.focusedSquare);
@@ -517,7 +581,6 @@ chess1.ondragmove.push(
     }
 )
 
-// fix instant movement
 chess1.ondrop.push(
     function(e) {
         chess1.highlight([]);
@@ -526,15 +589,12 @@ chess1.ondrop.push(
      * 
      * @this {ChessObject}
      */
-    async function(e) {
-        let legalMoves = chess1.moves({verbose: true});
-        if (this.started && this.orientation === "b") {
-            let legalMove = legalMoves[Math.floor(Math.random()*legalMoves.length)];
-            let move = legalMove.from+"-"+legalMove.to;
-            let promotion = legalMove.promotion;
-            this.move(move,{animation: true});
-        }
-    }
+    // async function(e) {
+    //     if (this.started && this.orientation === "b") {
+    //         await sleep(100);
+    //         this.move(this.getRandomMove(),{animation: true});
+    //     }
+    // }
 )
 
 chess1.atdrop.push(
@@ -553,7 +613,6 @@ chess1.atdrop.push(
                 const top = rect.top;
                 const height = rect.height;
                 const width = rect.width;
-                console.log(rect);
                 let $test = createElement("div",{
                         style: {
                             top: `${top-height*1.5}px`,
@@ -578,21 +637,8 @@ chess1.atdrop.push(
                                 promotion: $elm.id.slice(-1).toLowerCase()
                             },
                             display: false,
-                            linked: false
+                            updateDisplay: true
                         });
-                        // this.put({type: $elm.id.slice(-1), color: "w"}, this.focusedSquare);
-                        this.updateDisplay();
-                        for (let board of this.linkedBoards) {
-                            await board.move(this.focusedSquare.slice(0,1)+"7-"+this.focusedSquare, {
-                                data: {
-                                    promotion: $elm.id.slice(-1).toLowerCase()
-                                },
-                                display: false,
-                                origin: false
-                            }).then(() => {
-                                board.updateDisplay();
-                            });
-                        }
                         $elm.parentElement.remove();
                     });
                 }
@@ -600,10 +646,96 @@ chess1.atdrop.push(
             }
             else if (this.focusedColor === "b" && this.focusedSquare.includes("1")) {
                 exception = true;
+                const rect = this.focusedElement.getBoundingClientRect();
+                const left = rect.left;
+                const top = rect.top;
+                const height = rect.height;
+                const width = rect.width;
+                let $test = createElement("div",{
+                        style: {
+                            top: `${top-height*1.5}px`,
+                            left: `${left-width/2}px`,
+                            width: "200px",
+                            height: "50px",
+                            position: "absolute",
+                            backgroundColor: "grey",
+                            display: "flex"
+                        },
+                        children: [
+                            this.display.shadowRoot.getElementById("spare-piece-bQ").cloneNode(true),
+                            this.display.shadowRoot.getElementById("spare-piece-bR").cloneNode(true),
+                            this.display.shadowRoot.getElementById("spare-piece-bB").cloneNode(true),
+                            this.display.shadowRoot.getElementById("spare-piece-bN").cloneNode(true)
+                        ]
+                    });
+                for (let $elm of $test.children) {
+                    $elm.addEventListener("click",async () => {
+                        await this.move(this.focusedSquare.slice(0,1)+"2-"+this.focusedSquare, {
+                            data: {
+                                promotion: $elm.id.slice(-1).toLowerCase()
+                            },
+                            display: false,
+                            updateDisplay: true
+                        });
+                        $elm.parentElement.remove();
+                    });
+                }
+                this.display.shadowRoot.appendChild($test);
             }
         }
         return exception;
     },
+    /**
+     * 
+     * @this {ChessObject} 
+     */
+    async function(e) {
+        let exception = false;
+        const {target, piece} = e.detail;
+        const castling = this.fen({meta: "castling"});
+        console.log(castling);
+        if (piece === "wK") {
+            if (target === "g1") {
+                if (castling.includes("K")) {
+                    exception = true;
+                    await this.move("O-O", {
+                        display: false,
+                        updateDisplay: true
+                    });
+                }
+            }
+            else if (target === "c1" || target === "b1") {
+                if (castling.includes("Q")) {
+                    exception = true;
+                    await this.move("O-O-O", {
+                        display: false,
+                        updateDisplay: true
+                    });
+                }
+            }
+        }
+        else if (piece === "bK") {
+            if (target === "g8") {
+                if (castling.includes("k")) {
+                    exception = true;
+                    await this.move("o-o", {
+                        display: false,
+                        updateDisplay: true
+                    });
+                }
+            }
+            else if (target === "c8" || target === "b8") {
+                if (castling.includes("q")) {
+                    exception = true;
+                    await this.move("o-o-o", {
+                        display: false,
+                        updateDisplay: true
+                    });
+                }
+            }
+        }
+        return exception;
+    }
 )
 
 //chess2.put({type: "Q", color: "w"}, "e4");
