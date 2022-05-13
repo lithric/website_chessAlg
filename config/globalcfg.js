@@ -209,3 +209,7 @@ const flipCase = str => {
    };
    return newStr;
 };
+
+String.prototype.flipCase = function() {
+    return flipCase(this);
+}

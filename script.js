@@ -66,12 +66,26 @@ class ChessObject extends Chess {
          * @param {Object} options
          * @param {boolean} options.flip
          * @param {boolean|string} options.meta
+         * @param {Object} options.set
+         * @param {string} options.set.position
+         * @param {string} options.set.orientation
+         * @param {string} options.set.castling
+         * @param {string} options.set.enPassant
+         * @param {string} options.set.halfMoves
+         * @param {string} options.set.fullMoves
          * @returns 
          */
         this.fen = (options = {}) => {
+            /*
+            this.fen({set: {
+                castling: "asdwa",
+                position: "adw"
+            }})
+            */
             let fen = this.#override.fen();
             let pFen = fen.split(' ').rekey("position","orientation","castling","enPassant","halfMoves","fullMoves");
             let finalFen = ' ';
+            let setFen = ' ';
             /*
             castling  meta
             orientation meta
@@ -80,33 +94,27 @@ class ChessObject extends Chess {
             */
             if (options.meta ?? true) {
                 let meta = options.meta ?? "position, orientation, castling, enPassant, halfMoves, fullMoves";
-                if (meta.includes("position")) {
-                    finalFen += pFen.position + " ";
-                }
-                if (meta.includes("orientation")) {
-                    finalFen += pFen.orientation + " ";
-                }
-                if (meta.includes("castling")) {
-                    finalFen += pFen.castling + " ";
-                }
-                if (meta.includes("enPassant")) {
-                    finalFen += pFen.enPassant + " ";
-                }
-                if (meta.includes("halfMoves")) {
-                    finalFen += pFen.halfMoves + " ";
-                }
-                if (meta.includes("fullMoves")) {
-                    finalFen += pFen.fullMoves + " ";
-                }
+                finalFen += meta.includes("position") ? (options.flip ? pFen.position.flipCase()+' ':pFen.position+' '):'' 
+                finalFen += meta.includes("orientation") ? pFen.orientation+' ':'';
+                finalFen += meta.includes("castling") ? pFen.castling+' ':'';
+                finalFen += meta.includes("enPassant") ? pFen.enPassant+' ':'';
+                finalFen += meta.includes("halfMoves") ? pFen.halfMoves+' ':'';
+                finalFen += meta.includes("fullMoves") ? pFen.fullMoves+' ':'';
                 finalFen = finalFen.trimEnd();
             }
             else {
-                if (options.flip) {
-                    finalFen = flipCase(pFen.position)+finalFen;
-                }
-                else {
-                    finalFen = pFen.position+finalFen;
-                }
+                finalFen += options.flip ? pFen.position.flipCase()+' ':pFen.position+' ';
+            }
+            if (options.set ?? false) {
+                setFen += (options.set.position ?? pFen.position)+' ';
+                setFen += (options.set.orientation ?? pFen.orientation)+' ';
+                setFen += (options.set.castling ?? pFen.castling)+' ';
+                setFen += (options.set.enPassant ?? pFen.enPassant)+' ';
+                setFen += (options.set.halfMoves ?? pFen.halfMoves)+' ';
+                setFen += (options.set.fullMoves ?? pFen.fullMoves)+' ';
+                setFen = setFen.trim();
+                this.#override.load(setFen);
+                this.updateDisplay();
             }
             finalFen = finalFen.trim();
             return finalFen;
@@ -176,9 +184,16 @@ class ChessObject extends Chess {
             this.#override.put({type: type, color: color},square);
             this.load(this.fen());
         }
+        /**
+         * 
+         * @param {Array<string>} squares 
+         */
         this.highlight =async function(squares) {
             await until(async()=>this.display.shadowRoot);
+            let castleMap = {'O-O':'Kg1','O-O-O':'Kc1','o-o':'Kg8','o-o-o':'Kc8'}
+            squares = squares.map(v=>castleMap[v]??v);
             console.log(squares);
+
             for (let $square of this.display.shadowRoot.querySelectorAll(".legalSquare")) {
                 $square.classList.remove("legalSquare");
                 for (let i=0; i<8;i++) {
@@ -558,22 +573,17 @@ chess1.ondragmove.push(
         // fix castling is not being highlighted
         chess1.highlight(
             chess1.simulate(
+                /**
+                 * 
+                 * @param {*} board
+                 * @this {ChessObject} 
+                 * @returns 
+                 */
                 function(board) {
-                        let fen = flipCase(this.fen().slice(0,-13))+this.fen().slice(-13);
-                        console.log(fen);
-                        if (!this.started) {
-                            board.load(this.fen());
-                            board.put({type: this.focusedPiece, color: this.focusedColor}, this.focusedSquare);
-                            board.load(board.fen());
-                        }
-                        if (!this.started) {
-                            return board.moves({square: newLocation});
-                        }
-                        else {
-                            board.load(this.fen());
-                            board.load(board.fen());
-                            return board.moves({square: source});
-                        }
+                    board.load(this.fen());
+                    this.started || board.put({type: this.focusedPiece, color: this.focusedColor}, this.focusedSquare);
+                    board.load(board.fen());
+                    return board.moves({square: this.started ? source:newLocation});
                 }
                 ,{copyFocused: false}
             )
@@ -741,8 +751,23 @@ chess1.atdrop.push(
 //chess2.put({type: "Q", color: "w"}, "e4");
 
 window.startPosition = function() {
+    var $option1 = document.getElementById("turn-white").checked;
+    var $option3 = document.getElementById("white-king-castle").checked;
+    var $option4 = document.getElementById("white-queen-castle").checked;
+    var $option5 = document.getElementById("black-king-castle").checked;
+    var $option6 = document.getElementById("black-queen-castle").checked;
+    chess1.fen({set:{
+        orientation: $option1 ? "w":"b",
+        castling: ($option3 ? 'K':'')+($option4 ? 'Q':'')+($option5 ? 'k':'')+($option6 ? 'q':'') || '-',
+        enPassant: '-'
+    }})
+    console.log(chess1.fen());
     chess1.start();
-    console.log(chess1.started);
+}
+window.stopPosition = function() {
+    chess1.stop();
+}
+window.resetPosition = function() {
 }
 window.loadPosition = function() {
 }
