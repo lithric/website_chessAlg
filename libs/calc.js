@@ -38,17 +38,30 @@ class Calc extends Array {
         this.past = [];
         this.future = [];
         this.undoLimit = 5;
+        let str = JSON.stringify(this[0]);
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            let char = str.charCodeAt(i);
+            hash = ((hash<<5)-hash)+char;
+            hash = hash & hash; // Convert to 32bit integer
+        }
+        this.hash = hash;
+        this[Symbol.toPrimitive] = function(hint) {
+            if (hint == 'number') {
+                return this[0];
+            }
+            return true;
+        }
     }
     /**
-     * @description replaces the current value of Calc iff the new value is
+     * @description replaces the current value of Calc if the new value is
      * not equal to the current value. Else, it replaces the current value with null.
      * @param {*} obj object to induct into the current value of Calc.
      * @returns new value of Calc.
      */
     induct(obj) {
         this.future = [];
-        this.past.unshift(this[0]) > this.undoLimit &&
-        this.past.pop();
+        this.past.unshift(this[0]) > this.undoLimit && this.past.pop();
         if (this[0] == null) {
             this[0] = obj;
         }
@@ -102,6 +115,29 @@ class Calc extends Array {
         this.past.pop();
         this[0] = expr;
     }
+    get value() {
+        return this[0];
+    }
+    get v() {
+        return this[0];
+    }
+    set value(obj) {
+        this.assign(obj);
+    }
+    set v(obj) {
+        this.assign(obj);
+    }
+    equals(obj) {
+        return _.isEqual(this[0],obj) || _.isEqual(this,obj);
+    }
+    eq(obj) {
+        return this.equals(obj);
+    }
+}
+if (window) {
+    window.Calc = Calc;
+    window.sleep = sleep;
+    window.until = until;
 }
 
 export{Calc,sleep,until};
