@@ -1,16 +1,8 @@
-//import { Chess } from "chess.js";
-/**
- * @typedef {import('chess.js').ChessInstance} ChessInstance
- */
-/**
- * @type {import('chess.js')}
- */
-const ChessParse = {Chess:Chess};
-const ChessType = ChessParse.Chess;
+import { Chess } from "./node_modules/chess.js/chess.js";
 
 import {sleep, until, Calc} from "./libs/calc.js"
 
-class ChessObject extends ChessType {
+class ChessObject extends Chess {
     #action = {
         "drag-start": (e) => {
             const {source, piece, position, orientation} = e.detail;
@@ -114,7 +106,7 @@ class ChessObject extends ChessType {
     chessObjectId;
     display;
     orientation;
-    #override = new ChessType();
+    #override = new Chess();
     constructor({size = "400px",title="untitled",fen = "",display = true} = {}) {
         super();
         fen != "" && this.#override.load(fen);
@@ -246,7 +238,92 @@ class ChessObject extends ChessType {
     ascii = () => {
         return this.#override.ascii();
     }
-    moves = this.#override.moves;
+    moves = (options = {}) => {
+        var Δboard = new Chess(this.#override.fen());
+        /**
+         * 
+         * @param {ChessInstance} board 
+         * @returns {ChessInstance[]}
+         */
+        function getSubBoards(board) {
+            if (Array.isArray(board)) {
+                let subBoards = [];
+                for (let subBoard of board) {
+                    subBoards.push(getSubBoards(subBoard));
+                }
+                return subBoards.flat(1);
+            }
+            else {
+                let subBoards = [];
+                let moves = board.moves();
+                for (let move of moves) {
+                    let subBoard = new Chess();
+                    subBoard.load_pgn(board.pgn());
+                    subBoard.move(move);
+                    subBoards.push(subBoard);
+                }
+                return subBoards;
+            }
+        }
+        /**
+         * 
+         * @param {ChessInstance} board
+         */
+        function getSubMoves(depth=0,prevMoves=[],threats=false,prevBThreats = [],prevWThreats = [],white = false,black = true) {
+            if (depth === 0) {
+                let moves = [];
+                Δboard.moves().forEach((move,i)=>{
+                    moves.push([...prevMoves,move]);
+                    if (threats) {
+                        black && (moves[i].bThreats = [...prevBThreats,Δboard.threats({swap: true})]);
+                        white && (moves[i].wThreats = [...prevBThreats,Δboard.threats({swap: false})]);
+                    }
+                });
+                return moves;
+            }
+            else {
+                let Δhistory = [];
+                let moves = Δboard.moves();
+                moves.forEach(move=>{
+                    Δboard.move(move);
+                    Δhistory.push(getSubMoves(depth-1,[...prevMoves,move],threats,
+                        black ? [...prevBThreats,Δboard.threats({swap: false})]:[],
+                        white ? [...prevWThreats,Δboard.threats({swap: true})]:[],
+                        white,
+                        black
+                    ));
+                    Δboard.undo();
+                });
+                return Δhistory.flat();
+            }
+        }
+        if (options.depth > -1) {
+            let depth = options.depth;
+            if (options.boards) {
+                let fin = this.#override;
+                while(depth--) {
+                    fin = getSubBoards(fin);
+                }
+                return getSubBoards(fin);
+            }
+            else {
+                if (options.threats) {
+                    return getSubMoves(depth,[],true,[],[],options.white,options.black);
+                }
+                else {
+                    return getSubMoves(depth);
+                }
+            }
+        }
+        else {
+            if (options.boards) {
+                return getSubBoards(this.#override);
+            }
+            else {
+                return this.#override.moves(options);
+            }
+        }
+    };
     getRandomMove = () => {
         let legalMoves = this.#override.moves({verbose: true});
         let legalMove = legalMoves.random();
@@ -325,6 +402,9 @@ class ChessObject extends ChessType {
         let stuff = callback.bind(this)(simul);
         return stuff;
     }
+    turn = () => {
+        return this.#override.turn();
+    }
     /**
      * @param {string} e
      */
@@ -336,8 +416,8 @@ class ChessObject extends ChessType {
         else {
             move = e;
         }
-        if (e.includes("O")) {
-            move = e;
+        if (e.includes("O") || e.includes("o")) {
+            move = e.toUpperCase();
         }
         for (let key in data) {
             move[key] = data[key];
@@ -371,7 +451,7 @@ class ChessObject extends ChessType {
      */
     highlight = async(squares,{origin = true} = {}) => {
         await until(async()=>this.display.shadowRoot);
-        let castleMap = {'O-O':'Kg1','O-O-O':'Kc1','o-o':'Kg8','o-o-o':'Kc8'}
+        let castleMap = {'O-O':this.turn() == 'w' ? 'Kg1':'Kg8','O-O-O':this.turn() == 'w' ? 'Kc1':'Kc8'};
         squares = squares.map(v=>castleMap[v]??v);
         console.log(squares);
 
@@ -615,6 +695,10 @@ chess1.ondrop.push(
     function(e) {
         chess1.highlight([]);
     },
+    function(e) {
+        let num = materialCount(this);
+        console.log(`material balance: ${num}`);
+    },
     /**
      * 
      * @this {ChessObject}
@@ -646,7 +730,7 @@ chess1.ondrop.push(
     //     }
     // }
     async function(e) {
-        if (this.started && this.orientation === "b") {
+        if (this.started && this.turn() === "w") {
             await sleep(100);
             let moves = this.moves();
             let devMove = moves.random();
@@ -656,6 +740,7 @@ chess1.ondrop.push(
             let lossDevMaterial = 0;
             let lossDevScore = 0;
             let finalMove = moves.random();
+            let colorMult = this.turn() == "b" ? 1:-1;
             for (let firstMove of moves) {
                 await this.simulate(async function(board){
                     board.load(this.fen());
@@ -668,7 +753,10 @@ chess1.ondrop.push(
                             board.load(this.fen());
                             await board.move(secondMove); // whites move
                             // how many moves does black have
-                            return [board.moves().length, materialCount(board)];
+                            if (board.moves().filter(v=>v.includes("#")).length) {
+                                return [500,-500];
+                            }
+                            return [board.moves().length, materialCount(board)*colorMult];
                         });
                         matureDevScore = Math.min(matureDevScore,movScore[0]);
                         matureDevMaterial = Math.max(matureDevMaterial,movScore[1]);
@@ -685,16 +773,18 @@ chess1.ondrop.push(
                     }
                 });
             }
-            console.log(devMaterial,lossDevMaterial);
+            console.log(devMaterial,lossDevMaterial,devScore,lossDevScore);
             if (devMaterial < -1 && devMaterial > -500) {
                 finalMove = devMatMove
+                console.log(devMatMove,devMove);
             }
             else if (lossDevMaterial > 0 && lossDevMaterial != devMaterial) {
                 finalMove = devMatMove;
-                console.log(devMatMove);
+                console.log(devMatMove,devMove);
             }
             else {
                 finalMove = devMove;
+                console.log(devMatMove,devMove);
             }
             this.move(finalMove,{
                 display: false,
@@ -711,6 +801,7 @@ chess1.atdrop.push(
      * @this {ChessObject}
      */
     async function(e) {
+        const {target,source} = e.detail;
         let exception = false;
         if (this.focusedPiece === "P") {
             if (this.focusedColor === "w" && this.focusedSquare.includes("8")) {
@@ -740,7 +831,7 @@ chess1.atdrop.push(
                     });
                 for (let $elm of $test.children) {
                     $elm.addEventListener("click",async () => {
-                        await this.move(this.focusedSquare.slice(0,1)+"7-"+this.focusedSquare, {
+                        await this.move(source+"-"+target, {
                             data: {
                                 promotion: $elm.id.slice(-1).toLowerCase()
                             },
@@ -826,6 +917,7 @@ chess1.atdrop.push(
             if (target === "g8") {
                 if (castling.includes("k")) {
                     exception = true;
+                    console.log(this.moves());
                     await this.move("o-o", {
                         display: false,
                         updateDisplay: true

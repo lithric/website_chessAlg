@@ -5,6 +5,8 @@
         "chessobj",
         "nieve",
         "ondragmove",
+        "Δboard",
+        "Δhistory",
         "Δthis"
     ]
 }
