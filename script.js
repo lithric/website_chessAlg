@@ -502,6 +502,7 @@ class ChessObject extends Chess {
             }
         }
     }
+    get = this.#override.get;
     moveIsLegal = (e) => {
         let verbose = true;
         let move;
@@ -527,6 +528,7 @@ class ChessObject extends Chess {
         }
         return i<legalMoves.length;
     }
+    threats = this.#override.threats;
     highlightLegalMoves = async(options,{origin = true} = {}) => {
         await until(async()=>this.display.shadowRoot);
         for (let $square of this.display.shadowRoot.querySelectorAll(".legalSquare")) {
@@ -730,8 +732,11 @@ chess1.ondrop.push(
     //     }
     // }
     async function(e) {
-        if (this.started && this.turn() === "w") {
+        if (this.started && this.turn() === "b") {
             await sleep(100);
+            let piece = (pm) => (['N','B','R','Q','K'].find(v=>v==pm.slice(0,1)) ?? 'P') + pm.replace(/[NR]x?([a-h]).*|.*/g,'$1');
+            let square = (pm) => [...(this.turn() === "b" ? ['g8','c8']:['g1','c1'])][['O-O','O-O-O'].indexOf(pm)] ?? pm.replace(/[NBRQK]?x?[a-h]?x?([a-h][1-8]).*|.*/,'$1');
+            let mats = (pm) => [1,3,3,5,10,0][['P','N','B','R','Q','K'].indexOf(piece(pm).slice(0,1))] ?? 0;
             let moves = this.moves();
             let devMove = moves.random();
             let devScore = 0;
@@ -741,6 +746,7 @@ chess1.ondrop.push(
             let lossDevScore = 0;
             let finalMove = moves.random();
             let colorMult = this.turn() == "b" ? 1:-1;
+            let currentBoard = this;
             for (let firstMove of moves) {
                 await this.simulate(async function(board){
                     board.load(this.fen());
@@ -752,11 +758,41 @@ chess1.ondrop.push(
                         let movScore = await board.simulate(async function(board){
                             board.load(this.fen());
                             await board.move(secondMove); // whites move
+                            let matureMatCalc = 0;
+                            if (secondMove.includes("x")) {
+                                board.moves().forEach(thirdMove=>{
+                                    let matCalc = 0;
+                                    if (firstMove.includes('x')) {
+                                        matCalc += mats(currentBoard.get(square(firstMove)).type.toUpperCase());
+                                    }
+                                    if (thirdMove.includes('x') && !board.threats().includes(square(thirdMove))) {
+                                        console.log('takeBack',firstMove,secondMove,thirdMove,
+                                        (matCalc = -mats(board.get(square(thirdMove)).type.toUpperCase())));
+                                    }
+                                    else if (thirdMove.includes('+') && !board.threats().includes(square(thirdMove))) {
+                                        console.log('tactics',firstMove,secondMove,thirdMove,
+                                        (matCalc = mats(board.get(square(secondMove)).type.toUpperCase())));
+                                    }
+                                    else if (!board.threats().includes(square(thirdMove))) {
+                                        console.log(
+                                            'loss',firstMove,secondMove,thirdMove,
+                                            (matCalc = mats(board.get(square(secondMove)).type.toUpperCase()))
+                                        );
+                                    }
+                                    else {
+                                        console.log(
+                                            'huge loss',firstMove,secondMove,thirdMove,
+                                            (matCalc = Math.max(mats(board.get(square(secondMove)).type),mats(thirdMove)))
+                                        )
+                                    }
+                                    matureMatCalc = Math.min(matureMatCalc,matCalc*colorMult);
+                                });
+                            }
                             // how many moves does black have
                             if (board.moves().filter(v=>v.includes("#")).length) {
                                 return [500,-500];
                             }
-                            return [board.moves().length, materialCount(board)*colorMult];
+                            return [board.moves().length, (materialCount(board)+matureMatCalc)*colorMult];
                         });
                         matureDevScore = Math.min(matureDevScore,movScore[0]);
                         matureDevMaterial = Math.max(matureDevMaterial,movScore[1]);
