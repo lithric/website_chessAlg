@@ -441,6 +441,16 @@ class ChessObject extends Chess {
             }
         }
     }
+    pinned = (square, {swap = false} = {}) => {
+        this
+    }
+    attacked = (square, {swap = false} = {}) => {
+        return this.#override.attacked(color,square);
+    }
+    #swap_color = (color) => {
+        return color === "w" ? "b":"w";
+        // return color.swap("w","b");
+    }
     put = async({type, color}, square) => {
         this.#override.put({type: type, color: color},square);
         !!this.display && this.updateDisplay();

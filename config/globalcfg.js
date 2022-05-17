@@ -49,6 +49,39 @@ Array.prototype.random = function() {
     return this[randIndex];
 }
 
+/**
+ * 
+ * @param {string|RegExp} searchReplaceValue 
+ * @param {string|RegExp} searchSwapValue 
+ */
+String.prototype.swap = function(searchReplaceValue,searchSwapValue) {
+    let foundReplace = this.match(searchReplaceValue);
+    let foundSwap = this.match(searchSwapValue);
+    let replaceRemainder;
+    if (typeof searchReplaceValue === 'string' || !searchReplaceValue.flags.includes('g')) {
+        let partingIndex = this.search(searchReplaceValue);
+        replaceRemainder = [this.slice(0,partingIndex),this.slice(partingIndex+1)];
+    }
+    else {
+        replaceRemainder = this.split(searchReplaceValue);
+    }
+    let swaps = 1;
+    for(let i=0; i < replaceRemainder.length && swaps < replaceRemainder.length-1; i++) {
+        if (replaceRemainder[i].search(searchSwapValue)+1) {
+            replaceRemainder[i] = replaceRemainder[i].replace(searchSwapValue,foundReplace[swaps-1 % foundReplace.length]);
+            swaps++;
+        }
+    }
+    console.log(foundReplace);
+    console.log(foundSwap);
+    console.log(replaceRemainder);
+    return replaceRemainder.reduce((acc,cur,i)=>acc+foundSwap[i % (foundSwap?.length ?? 1)]+cur);
+}
+
+console.log("o".swap('o','n'));
+// hom(n)ym(on)
+
+
 Array.prototype.rekey = function rekey() {
     var base = {...this};
     return [...arguments].reduce((acc,cur,i)=>{
