@@ -255,7 +255,27 @@ class ChessBoards {
     #asciiEmpty = '\u00B7';
     #asciiScaleX = 3;
     #asciiScaleY = 1;
-    board;
+    fastBoard;
+    get board() {
+        let squares = ['a','b','c','d','e','f','g','h'];
+        function rep(stack,thisValue,iter=1) {
+            return Math.floor(thisValue/8**iter) ? squares[Math.floor(stack/8) % 8]+rep(Math.floor(stack/8),thisValue,++iter):'';
+        }
+        let make = [];
+        for (let i=0; i<this.fastBoard.length; i++) {
+            if (i % this.width === 0) {
+                make.push([]);
+            }
+            make[Math.floor(i/this.width)].push(this.fastBoard[i]);
+            Object.defineProperty(make,(squares[(i % this.width) % 8] + rep(i % this.width,this.width-1)).split('').reverse().join('')+make.length,{
+                get: ()=>{return this.fastBoard[i]},
+                set: (v) => {
+                    this.fastBoard[i] = v;
+                }
+            })
+        }
+        return make;
+    }
     constructor(...dimensions) {
         dimensions.length-1 || (dimensions = dimensions[0]);
         this.width = 8;
@@ -282,31 +302,26 @@ class ChessBoards {
                 console.error('invalid board dimensions');
             break;
         }
-        this.board = Array(this.width*this.height).fill('\u00B7');
+        this.fastBoard = Array(this.width*this.height).fill('\u00B7');
+        this.board["c5"] = 'p';
+        console.log(this.board["c5"]);
+        // this.square('d1') = new Pawn();
         this.#updateAscii();
-        /*
-           #-------------#
-          1| r n b k b n |
-          2| p p p p p p |
-          3| - - - - - - |
-          4| p p p p p p |
-          5| R N B K B N |
-           #-------------#
-             a b c d e f
-        */
     }
     #updateAscii() {
         let scaleX = this.#asciiScaleX;
         let scaleY = this.#asciiScaleY;
+        let sizeIndent = Math.log10(this.height)+1;
+        let indent = ' '.repeat(sizeIndent);
         let spaceX = ' '.repeat(scaleX);
         let squares = ['a','b','c','d','e','f','g','h'];
-        let vertPiece = '  '+this.#asciiBorder[2]+this.#asciiBorder[0].repeat(this.width*spaceX.length+spaceX.length-1)+this.#asciiBorder[2];
+        let vertPiece = indent+this.#asciiBorder[2]+this.#asciiBorder[0].repeat(this.width*spaceX.length+spaceX.length-1)+this.#asciiBorder[2];
         let emptyHoriz = '  '+this.#asciiBorder[1]+(spaceX).repeat(this.width)+spaceX.slice(1)+this.#asciiBorder[1]+'\n';
         let horizPiece =emptyHoriz.repeat(scaleY-1)+'%n'+this.#asciiBorder[1]+(spaceX.slice(1)+this.#asciiEmpty).repeat(this.width)+spaceX.slice(1)+this.#asciiBorder[1];
         function rep(stack,thisValue,iter=1) {
             return Math.floor(thisValue/8**iter) ? squares[Math.floor(stack/8) % 8]+rep(Math.floor(stack/8),thisValue,++iter):'';
         }
-        let bottomPiece = '  '+spaceX+(() => {
+        let bottomPiece = indent+spaceX+(() => {
                 let returnValue = '';
                 for (let i=0; i<this.width; i++) {
                     returnValue += 
@@ -317,8 +332,8 @@ class ChessBoards {
             }
         )();
         this.ascii = vertPiece+'\n'+(horizPiece+'\n').repeat(this.height)+emptyHoriz.repeat(scaleY-1)+vertPiece+'\n'+bottomPiece;
-        this.ascii = this.ascii.swapAll('\u00B7',this.board);
-        let numberList = [...Array(this.height).keys()].map(v=>(String(v+1)).padStart(Math.log10(this.height)+1,'0'));
+        this.ascii = this.ascii.swapAll('\u00B7',this.fastBoard);
+        let numberList = [...Array(this.height).keys()].map(v=>(String(v+1)).padStart(Math.log10(this.height)+1,' '));
         this.ascii = this.ascii.swapAll('%n',numberList);
     }
     draw() {
@@ -326,5 +341,24 @@ class ChessBoards {
     }
 }
 
+class ChessPiece {
+    constructor() {
+    }
+}
+
 var chess1 = new ChessBoards("8x8");
+const Bishop = new ChessPiece({
+    piece: 'B',
+    pattern: []
+})
+const Rook = new ChessPiece({
+    piece: 'R',
+    pattern: [
+        ['0','*','0'],
+        ['*','R','*'],
+        ['0','*','0']
+    ]
+})
+
+//var l = new Bishop();
 chess1.draw();

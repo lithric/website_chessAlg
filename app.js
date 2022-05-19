@@ -31,17 +31,21 @@ const port = 8000;
 const hostname = "localhost";
 
 const server = createServer(async(request, response) => {
-    console.log(request.url);
-    if (!["/","/node_modules/chessboard-element/index.js"].includes(request.url)) {
-        await response.writeFile(request.url);
+    var reqUrl = request.url;
+    console.log(reqUrl);
+    if (!["/","/node_modules/chessboard-element/index.js","/favicon.ico"].includes(reqUrl)) {
+        await response.writeFile(reqUrl);
         response.end();
     }
-    else if (request.url != "/") {
-        await response.writeFile(request.url);
+    else if (!["/","/favicon.ico"].includes(reqUrl)) {
+        await response.writeFile(reqUrl);
+        response.end();
+    }
+    else if (reqUrl === '/') {
+        await response.writeFile("/index.html");
         response.end();
     }
     else {
-        await response.writeFile("/index.html");
         response.end();
     }
 }).listen(port,hostname);
