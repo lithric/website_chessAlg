@@ -445,7 +445,7 @@ class ChessObject extends Chess {
         this
     }
     attacked = (square, {swap = false} = {}) => {
-        return this.#override.attacked(color,square);
+        return this.#override.attacked(swap ? this.#swap_color(color):color,square);
     }
     #swap_color = (color) => {
         return color === "w" ? "b":"w";
@@ -539,6 +539,7 @@ class ChessObject extends Chess {
         return i<legalMoves.length;
     }
     threats = this.#override.threats;
+    defending = this.#override.defending;
     highlightLegalMoves = async(options,{origin = true} = {}) => {
         await until(async()=>this.display.shadowRoot);
         for (let $square of this.display.shadowRoot.querySelectorAll(".legalSquare")) {
@@ -762,51 +763,141 @@ chess1.ondrop.push(
                     board.load(this.fen());
                     await board.move(firstMove); // blacks move
                     let moves = board.moves();
+                    let firstBoard = board;
                     let matureDevScore = 500;
                     let matureDevMaterial = -500;
                     for (let secondMove of moves) {
                         let movScore = await board.simulate(async function(board){
                             board.load(this.fen());
                             await board.move(secondMove); // whites move
-                            let matureMatCalc = 0;
-                            if (secondMove.includes("x")) {
-                                board.moves().forEach(thirdMove=>{
-                                    let matCalc = 0;
-                                    if (firstMove.includes('x')) {
-                                        matCalc += mats(currentBoard.get(square(firstMove)).type.toUpperCase());
+                            let lostMoves = 0;
+                            let secondBoard = board;
+                            let matureMatCalc = 500;
+                            board.moves().forEach(thirdMove=>{
+                                let firstIsTake = firstMove.includes('x');
+                                let firstIsCheck = firstMove.includes('+');
+                                let firstIsMate = firstMove.includes('#');
+                                let secondIsTake = secondMove.includes('x');
+                                let secondIsCheck = secondMove.includes('+');
+                                let secondIsMate = secondMove.includes('#');
+                                let thirdIsTake = thirdMove.includes('x');
+                                let thirdIsCheck = thirdMove.includes('+');
+                                let thirdIsMate = thirdMove.includes('#');
+                                
+                                let firstTakeMats = firstIsTake ? mats(currentBoard.get(square(firstMove)?.type?.toUpperCase()) ?? 'P'):0;
+                                let secondTakeMats = secondIsTake ? mats(firstBoard.get(square(secondMove))?.type?.toUpperCase() ?? 'P'):0;
+                                let thirdTakeMats = thirdIsTake ? mats(secondBoard.get(square(thirdMove))?.type?.toUpperCase() ?? 'P'):0;
+
+                                let firstIsTaken = secondIsTake && (secondBoard.get(square(firstMove))?.color ?? firstBoard.turn()) == firstBoard.turn();
+                                let firstIsAttacked = currentBoard.threats().includes(square(firstMove)); // before blacks move
+                                let firstIsThreatened = secondBoard.threats().includes(square(firstMove));
+                                let firstIsDefended = firstBoard.threats().includes(square(firstMove));
+                                let secondIsAttacked = firstBoard.threats().includes(square(secondMove));
+                                let secondIsThreatened = secondBoard.defending().includes(square(secondMove));
+                                let secondIsDefended = secondBoard.threats().includes(square(secondMove));
+                                let thirdIsAttacked = secondBoard.threats().includes(square(thirdMove));
+                                let thirdIsDefended = secondBoard.defending().includes(square(thirdMove));
+
+                                let matCalc = 0;
+                                if (firstIsTake) {
+                                    matCalc -= firstTakeMats;
+                                }
+                                if (firstIsAttacked && !firstIsDefended) {
+                                    lostMoves++;
+                                }
+                                if (firstIsMate) {
+                                    matCalc = -500;
+                                    console.log('mate in 1');
+                                }
+                                else if (thirdIsMate) {
+                                    matCalc = -500;
+                                    console.log('mate in 2',firstMove,secondMove,thirdMove,matCalc);
+                                }
+                                if (firstIsCheck) {
+                                    if (!firstIsTaken && !secondIsCheck) {
+                                        if (!firstIsThreatened) {
+                                            console.log('safe check');
+                                        }
+                                        else if (firstIsThreatened) {
+                                            console.log('unsafe check');
+                                            lostMoves++;
+                                        }
                                     }
-                                    if (thirdMove.includes('x') && !board.threats().includes(square(thirdMove))) {
-                                        console.log('takeBack',firstMove,secondMove,thirdMove,
-                                        (matCalc = -mats(board.get(square(thirdMove)).type.toUpperCase())));
+                                    else if (secondIsCheck) {
+                                        console.log('Counter!');
+                                        lostMoves++;
                                     }
-                                    else if (thirdMove.includes('+') && !board.threats().includes(square(thirdMove))) {
-                                        console.log('tactics',firstMove,secondMove,thirdMove,
-                                        (matCalc = mats(board.get(square(secondMove)).type.toUpperCase())));
+                                    else if (firstIsTaken) {
+                                        matCalc += secondTakeMats;
+                                        if (thirdIsTake) {
+                                            if (thirdIsCheck && thirdIsDefended && !thirdIsAttacked) {
+                                                console.log('safe check');
+                                                matCalc -= thirdTakeMats;
+                                            }
+                                            else if (thirdIsCheck && !thirdIsAttacked) {
+                                                console.log('tactics');
+                                                matCalc -= thirdTakeMats;
+                                            }
+                                            else if (!thirdIsCheck && thirdIsAttacked) {
+                                                console.log('tactics');
+                                                matCalc -= thirdTakeMats - mats(thirdMove);
+                                            }
+                                            else if (!thirdIsCheck && !thirdIsAttacked) {
+                                                console.log('takeBack');
+                                                matCalc -= thirdTakeMats;
+                                            }
+                                            else {
+                                                console.log('unknown tactic');
+                                                matCalc -= thirdTakeMats - mats(thirdMove);
+                                            }
+                                        }
                                     }
-                                    else if (!board.threats().includes(square(thirdMove))) {
-                                        console.log(
-                                            'loss',firstMove,secondMove,thirdMove,
-                                            (matCalc = mats(board.get(square(secondMove)).type.toUpperCase()))
-                                        );
+                                }
+                                if (secondIsTake) {
+                                    matCalc += secondTakeMats;
+                                     if (thirdIsTake && !thirdIsAttacked) {
+                                        matCalc -= thirdTakeMats;
+                                        console.log('takeBack',firstMove,secondMove,thirdMove,matCalc);
+                                    }
+                                    else if (thirdIsTake && thirdIsAttacked && !thirdIsDefended) {
+                                        matCalc -= thirdTakeMats-mats(thirdMove);
+                                    }
+                                    else if (thirdIsTake && thirdIsAttacked && thirdIsDefended) {
+                                        matCalc -= thirdTakeMats-mats(thirdMove)+mats(secondMove);
+                                    }
+                                    else if (thirdIsCheck && (!thirdIsAttacked || thirdIsDefended) && !firstIsAttacked) {
+                                        matCalc -= 1;
+                                        console.log('lost tactics',firstMove,secondMove,thirdMove,matCalc);
+                                    }
+                                    else if (!thirdIsAttacked || thirdIsDefended) {
+                                        // loss
+                                        matCalc += 0;
+                                        lostMoves++;
+                                    }
+                                    else if (!secondIsMate) {
+                                        // huge loss
+                                        matCalc = Math.max(matCalc,mats(thirdMove));
+                                        lostMoves++;
                                     }
                                     else {
-                                        console.log(
-                                            'huge loss',firstMove,secondMove,thirdMove,
-                                            (matCalc = Math.max(mats(board.get(square(secondMove)).type),mats(thirdMove)))
-                                        )
+                                        matCalc = 500;
+                                        console.log('mated',firstMove,secondMove,thirdMove,matCalc);
+                                        lostMoves = 500;
                                     }
-                                    matureMatCalc = Math.min(matureMatCalc,matCalc*colorMult);
-                                });
-                            }
+                                }
+                                matureMatCalc = Math.min(materialCount(board)+matureMatCalc,matCalc*colorMult);
+                            });
                             // how many moves does black have
                             if (board.moves().filter(v=>v.includes("#")).length) {
+                                console.log(matureMatCalc);
                                 return [500,-500];
                             }
-                            return [board.moves().length, (materialCount(board)+matureMatCalc)*colorMult];
+                            return [board.moves().length-lostMoves, (matureMatCalc)*colorMult];
                         });
                         matureDevScore = Math.min(matureDevScore,movScore[0]);
                         matureDevMaterial = Math.max(matureDevMaterial,movScore[1]);
                     }
+                    console.log(matureDevMaterial, firstMove);
                     if (matureDevScore > devScore) {
                         devScore = matureDevScore;
                         devMove = firstMove;
@@ -820,12 +911,8 @@ chess1.ondrop.push(
                 });
             }
             console.log(devMaterial,lossDevMaterial,devScore,lossDevScore);
-            if (devMaterial < -1 && devMaterial > -500) {
+            if (devMaterial < lossDevMaterial) {
                 finalMove = devMatMove
-                console.log(devMatMove,devMove);
-            }
-            else if (lossDevMaterial > 0 && lossDevMaterial != devMaterial) {
-                finalMove = devMatMove;
                 console.log(devMatMove,devMove);
             }
             else {

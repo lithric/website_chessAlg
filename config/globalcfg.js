@@ -44,6 +44,10 @@ function getMousePosFrom(elm) {
     return returnValue;
 }
 
+function escapeRegex(string) {
+    return string.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+}
+
 Array.prototype.random = function() {
     let randIndex = Math.floor(Math.random()*this.length);
     return this[randIndex];
@@ -51,34 +55,32 @@ Array.prototype.random = function() {
 
 /**
  * 
- * @param {string|RegExp} searchReplaceValue 
- * @param {string|RegExp} searchSwapValue 
+ * @param {string|Array<string>} searchReplaceValue 
+ * @param {string|Array<string>} searchSwapValue 
  */
-String.prototype.swap = function(searchReplaceValue,searchSwapValue) {
-    let foundReplace = this.match(searchReplaceValue);
-    let foundSwap = this.match(searchSwapValue);
-    let replaceRemainder;
-    if (typeof searchReplaceValue === 'string' || !searchReplaceValue.flags.includes('g')) {
-        let partingIndex = this.search(searchReplaceValue);
-        replaceRemainder = [this.slice(0,partingIndex),this.slice(partingIndex+1)];
+String.prototype.swapAll = function(searchReplaceValue,searchSwapValue) {
+    let returnValue;
+    if (searchReplaceValue.constructor === Array && searchSwapValue.constructor === String) {
+    }
+    else if (searchReplaceValue.constructor === String && searchSwapValue.constructor === Array) {
+        let swaps = 0;
+        returnValue = this.split(new RegExp(`(${escapeRegex(searchReplaceValue)})`)).map(v=>
+            v === searchReplaceValue ? searchSwapValue[swaps++]:
+            v.replace(searchSwapValue.find(t=>v.includes(t)) ?? searchReplaceValue,searchReplaceValue)
+            ).join('');
+    }
+    else if (searchReplaceValue.constructor === String && searchSwapValue.constructor === String){
+        returnValue = this.split(new RegExp(`(${escapeRegex(searchReplaceValue)})`)).map(v=>
+            v === searchReplaceValue ? searchSwapValue:
+            v.replace(searchSwapValue,searchReplaceValue)).join('');
     }
     else {
-        replaceRemainder = this.split(searchReplaceValue);
+        throw new Error('invalid input');
     }
-    let swaps = 1;
-    for(let i=0; i < replaceRemainder.length && swaps < replaceRemainder.length-1; i++) {
-        if (replaceRemainder[i].search(searchSwapValue)+1) {
-            replaceRemainder[i] = replaceRemainder[i].replace(searchSwapValue,foundReplace[swaps-1 % foundReplace.length]);
-            swaps++;
-        }
-    }
-    console.log(foundReplace);
-    console.log(foundSwap);
-    console.log(replaceRemainder);
-    return replaceRemainder.reduce((acc,cur,i)=>acc+foundSwap[i % (foundSwap?.length ?? 1)]+cur);
+    return returnValue;
 }
 
-console.log("o".swap('o','n'));
+console.log("ononon".swapAll('on',['n','b','v']));
 // hom(n)ym(on)
 
 
@@ -246,3 +248,82 @@ const flipCase = str => {
 String.prototype.flipCase = function() {
     return flipCase(this);
 }
+
+class ChessBoards {
+    ascii = '';
+    #asciiBorder = ['-','|','#'];
+    #asciiEmpty = '\u00B7';
+    #asciiScaleX = 3;
+    #asciiScaleY = 1;
+    constructor(...dimensions) {
+        dimensions.length-1 || (dimensions = dimensions[0]);
+        this.width = 8;
+        this.height = 8;
+
+        switch(dimensions.constructor) {
+            case Number:
+                dimensions > 2 &&
+                dimensions === Math.floor(dimensions) &&
+                ([this.width, this.height] = [dimensions,dimensions]) ||
+                console.error('invalid board dimensions');
+            break;
+            case String:
+                [this.width,this.height] = dimensions.match(/^([0-9]+)x([0-9]+)$/)?.slice(1)
+                ?.map(Number)
+                ?.reduce((v1,v2)=>v1>0&&v2>2||v1>2&&v2>0 ? [v1,v2]:null) ?? 
+                (console.error('invalid board dimensions'),[8,8]);
+            break;
+            case Array:
+                dimensions.length === 2 &&
+                dimensions.every(Number) &&
+                dimensions.some(v=>v>2) &&
+                ([this.width, this.height] = dimensions) ||
+                console.error('invalid board dimensions');
+            break;
+        }
+        // let vertPiece = '  '+this.#asciiBorder[2]+this.#asciiBorder[0].repeat(this.width*2+1)+this.#asciiBorder[2];
+        // let horizPiece = '%n'+this.#asciiBorder[1]+(' '+this.#asciiEmpty).repeat(this.width)+' '+this.#asciiBorder[1];
+        // this.ascii = vertPiece+'\n'+(horizPiece+'\n').repeat(this.height)+vertPiece;
+        this.#updateAscii();
+        console.log(this.ascii.swapAll('\u00B7',Array(64).fill('\u00B7').fill('p',8,16).fill('P',48,56)));
+        /*
+           #-------------#
+          1| r n b k b n |
+          2| p p p p p p |
+          3| - - - - - - |
+          4| p p p p p p |
+          5| R N B K B N |
+           #-------------#
+             a b c d e f
+        */
+    }
+    #updateAscii() {
+        let scaleX = this.#asciiScaleX;
+        let scaleY = this.#asciiScaleY;
+        let spaceX = ' '.repeat(scaleX);
+        let squares = ['a','b','c','d','e','f','g','h'];
+        let vertPiece = '  '+this.#asciiBorder[2]+this.#asciiBorder[0].repeat(this.width*spaceX.length+spaceX.length-1)+this.#asciiBorder[2];
+        let emptyHoriz = '  '+this.#asciiBorder[1]+(spaceX).repeat(this.width)+spaceX.slice(1)+this.#asciiBorder[1]+'\n';
+        let horizPiece =emptyHoriz.repeat(scaleY-1)+'%n'+this.#asciiBorder[1]+(spaceX.slice(1)+this.#asciiEmpty).repeat(this.width)+spaceX.slice(1)+this.#asciiBorder[1];
+        function rep(stack,thisValue,iter=1) {
+            return Math.floor(thisValue/8**iter) ? squares[Math.floor(stack/8) % 8]+rep(Math.floor(stack/8),thisValue,++iter):'';
+        }
+        let bottomPiece = '  '+spaceX+(() => {
+                let returnValue = '';
+                for (let i=0; i<this.width; i++) {
+                    returnValue += 
+                        (squares[i % 8] + rep(i,this.width-1)
+                    ).split('').reverse().join('').padEnd(spaceX.length,' ');
+                }
+                return returnValue;
+            }
+        )();
+        this.ascii = vertPiece+'\n'+(horizPiece+'\n').repeat(this.height)+emptyHoriz.repeat(scaleY-1)+vertPiece+'\n'+bottomPiece;
+
+    }
+    draw() {
+    }
+}
+
+var chess1 = new ChessBoards("8x8");
+chess1.draw();
