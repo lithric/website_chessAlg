@@ -255,6 +255,7 @@ class ChessBoards {
     #asciiEmpty = '\u00B7';
     #asciiScaleX = 3;
     #asciiScaleY = 1;
+    board;
     constructor(...dimensions) {
         dimensions.length-1 || (dimensions = dimensions[0]);
         this.width = 8;
@@ -281,11 +282,9 @@ class ChessBoards {
                 console.error('invalid board dimensions');
             break;
         }
-        // let vertPiece = '  '+this.#asciiBorder[2]+this.#asciiBorder[0].repeat(this.width*2+1)+this.#asciiBorder[2];
-        // let horizPiece = '%n'+this.#asciiBorder[1]+(' '+this.#asciiEmpty).repeat(this.width)+' '+this.#asciiBorder[1];
-        // this.ascii = vertPiece+'\n'+(horizPiece+'\n').repeat(this.height)+vertPiece;
+        this.board = Array(this.width*this.height).fill('\u00B7');
         this.#updateAscii();
-        console.log(this.ascii.swapAll('\u00B7',Array(64).fill('\u00B7').fill('p',8,16).fill('P',48,56)));
+        console.log(this.ascii);
         /*
            #-------------#
           1| r n b k b n |
@@ -319,7 +318,7 @@ class ChessBoards {
             }
         )();
         this.ascii = vertPiece+'\n'+(horizPiece+'\n').repeat(this.height)+emptyHoriz.repeat(scaleY-1)+vertPiece+'\n'+bottomPiece;
-
+        this.ascii = this.ascii.swapAll('\u00B7',this.board);
     }
     draw() {
     }
