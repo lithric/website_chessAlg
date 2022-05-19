@@ -284,7 +284,6 @@ class ChessBoards {
         }
         this.board = Array(this.width*this.height).fill('\u00B7');
         this.#updateAscii();
-        console.log(this.ascii);
         /*
            #-------------#
           1| r n b k b n |
@@ -319,8 +318,11 @@ class ChessBoards {
         )();
         this.ascii = vertPiece+'\n'+(horizPiece+'\n').repeat(this.height)+emptyHoriz.repeat(scaleY-1)+vertPiece+'\n'+bottomPiece;
         this.ascii = this.ascii.swapAll('\u00B7',this.board);
+        let numberList = [...Array(this.height).keys()].map(v=>(String(v+1)).padStart(Math.log10(this.height)+1,'0'));
+        this.ascii = this.ascii.swapAll('%n',numberList);
     }
     draw() {
+    	console.log(this.ascii);
     }
 }
 
