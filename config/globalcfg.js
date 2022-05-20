@@ -249,7 +249,7 @@ String.prototype.flipCase = function() {
     return flipCase(this);
 }
 
-class ChessBoards {
+class ChessBoard {
     ascii = '';
     #asciiBorder = ['-','|','#'];
     #asciiEmpty = '\u00B7';
@@ -339,26 +339,181 @@ class ChessBoards {
     draw() {
     	console.log(this.ascii);
     }
-}
+    load() {
 
+    }
+    /**
+     * 
+     * @param {Array<ChessPiece>} chessPieces 
+     */
+    store(chessPieces) {
+        for (let piece of chessPieces) {
+            this.#storedPieces[piece.piece] = piece;
+            this.#storedPieces[piece.piece.toLowerCase()] = new ChessPiece({
+                piece: piece.piece.toLowerCase(),
+                pattern:piece.pattern.reverse().map(arr=>arr.map(v=>v[0]===piece.piece ? v.toLowerCase():v))
+            });
+        }
+    }
+    #storedPieces = {}
+}
+function getAllIndexes(arr, val) {
+    var indexes = [], i;
+    for(i = 0; i < arr.length; i++)
+        if (arr[i] === val)
+            indexes.push(i);
+    return indexes;
+}
 class ChessPiece {
-    constructor() {
+    constructor({piece='X', pattern=[['X']]}={}) {
+        this.piece = piece;
+        if (pattern.every(v=>v.constructor === ChessPiece)) {
+            if (pattern.every(v=>v.pattern.length === pattern[0].pattern.length)) {
+                let combinedPattern = pattern.reduce((acc,cur)=>
+                    acc.map((v1,i)=>
+                    cur.pattern[i].map((v2,j)=>
+                        Math.floor(acc.length/2) !== i || Math.floor(acc.length/2) !== j ? v2 !== ' ' ? v2:v1[j]:piece
+                    )),pattern[0].pattern
+                )
+                this.pattern = combinedPattern;
+            }
+            else {
+                let size = Math.max(...pattern.map(v=>v.pattern.length));
+                let parsedPatterns = pattern.map(pat=>{
+                    let pot = pat.pattern.map(v=>[...Array(Math.floor(size-v.length)/2).fill(' '),...v,...Array(Math.floor(size-v.length)/2).fill(' ')]);
+                    while(pot.length < size) {
+                        pot.push(Array(size).fill(' '));
+                        pot.unshift(Array(size).fill(' '));
+                    }
+                    return pot;
+                });
+                let combinedPattern = parsedPatterns.reduce((acc,cur)=>
+                    acc.map((v1,i)=>
+                    cur[i].map((v2,j)=>
+                        Math.floor(acc.length/2) !== i || Math.floor(acc.length/2) !== j ? v2 !== ' ' ? v2:v1[j]:piece
+                    ))
+                )
+                this.pattern = combinedPattern;
+            }
+        }
+        else if (pattern.some(v=>v.constructor === ChessPiece)) {
+            console.error('invalid pattern group');
+        }
+        else {
+            this.pattern = pattern;
+        }
+        let middle = Math.floor(this.pattern.length/2);
+        this.takes = {
+            static: getAllIndexes(this.pattern.flat(),'+').map(v=>[middle-Math.floor(v/this.pattern.length),middle-(v % this.pattern.length)]),
+            dynamic: getAllIndexes(this.pattern.flat(),'x').map(v=>[middle-Math.floor(v/this.pattern.length),middle-(v % this.pattern.length)]),
+            infinite: getAllIndexes(this.pattern.flat(),'*').map(v=>[middle-Math.floor(v/this.pattern.length),middle-(v % this.pattern.length)]),
+            special: []
+        }
+        this.moves = {
+            static: getAllIndexes(this.pattern.flat(),'+').map(v=>[middle-Math.floor(v/this.pattern.length),middle-(v % this.pattern.length)]),
+            dynamic: getAllIndexes(this.pattern.flat(),'_').map(v=>[middle-Math.floor(v/this.pattern.length),middle-(v % this.pattern.length)]),
+            infinite: getAllIndexes(this.pattern.flat(),'*').map(v=>[middle-Math.floor(v/this.pattern.length),middle-(v % this.pattern.length)]),
+            special: []
+        }
     }
 }
+/**
+ ** *: can move and take infinitely in this direction
+ ** +: can move and take on this square
+ ** -: if square is not attacked
+ ** #: can be checkmated
+ ** !: is illegal to blunder (can be checked)
+ ** _: can move to this square
+ ** x: can take on this square
+ ** $: at this edge of the board
+ ** @[]: at "[]" square (row, column)
+ ** @[1]: when piece is at the 1st row
+ ** @[$-1]: at one away from final row of the board
+ ** @[1,0]: at the "b1" (or 0,1) square
+ ** @[*,0]: at the 0th column and any row
+ ** =: piece can promote to (promotion squares default to the end of the board)
+ ** &: and
+ ** %: can en-passant on this square (defaults to pawn to en-passant)
+ */
 
-var chess1 = new ChessBoards("8x8");
-const Bishop = new ChessPiece({
+ const Bishop = new ChessPiece({
     piece: 'B',
-    pattern: []
-})
-const Rook = new ChessPiece({
-    piece: 'R',
     pattern: [
-        ['0','*','0'],
-        ['*','R','*'],
-        ['0','*','0']
+        ['*',' ','*'],
+        [' ','B',' '],
+        ['*',' ','*']
+    ]
+});
+
+const Knight = new ChessPiece({
+    piece: 'N',
+    pattern: [
+        [' ','+',' ','+',' '],
+        ['+',' ',' ',' ','+'],
+        [' ',' ','N',' ',' '],
+        ['+',' ',' ',' ','+'],
+        [' ','+',' ','+',' ']
     ]
 })
 
-//var l = new Bishop();
-chess1.draw();
+const Rook = new ChessPiece({
+    piece: 'R',
+    pattern: [
+        [' ','*',' '],
+        ['*','R','*'],
+        [' ','*',' ']
+    ]
+})
+
+const Queen = new ChessPiece({
+    piece: 'Q',
+    pattern: [Rook,Bishop]
+});
+
+const Fairy = new ChessPiece({
+    piece: 'F',
+    pattern: [Queen,Knight]
+});
+
+const Pawn = new ChessPiece({
+    piece: 'P',
+    pattern: [
+        [' ', ' ', '_@[2]', ' ',' '],
+        [' ','x%',   '_'  ,'x%',' '],
+        [' ', ' ','P=NBRQ', ' ',' '],
+        [' ', ' ',   ' '  , ' ',' '],
+        [' ', ' ',   ' '  , ' ',' ']
+    ]
+});
+
+const King = new ChessPiece({
+    piece: 'K',
+    pattern: [
+        ['+','+','+'],
+        ['+','K#!','+'],
+        ['+','+','+']
+    ]
+});
+
+const Gambit = new ChessBoard("8x8");
+
+Gambit.store([
+    King,
+    Fairy,
+    Queen,
+    Bishop,
+    Knight,
+    Rook,
+    Pawn
+])
+Gambit.load([
+    ['r','n','b','q','k','b','n','r'],
+    ['p','p','p','p','p','p','p','p'],
+    [' ',' ',' ',' ',' ',' ',' ',' '],
+    [' ',' ',' ',' ',' ',' ',' ',' '],
+    [' ',' ',' ',' ',' ',' ',' ',' '],
+    [' ',' ',' ',' ',' ',' ',' ',' '],
+    ['P','P','P','P','P','P','P','P'],
+    ['R','N','B','Q','K','B','N','R']
+])
+Gambit.draw();
