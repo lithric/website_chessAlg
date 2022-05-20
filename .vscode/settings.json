@@ -3,6 +3,7 @@
         "atdragmove",
         "atdrop",
         "chessobj",
+        "enpassant",
         "nieve",
         "ondragmove",
         "Δboard",

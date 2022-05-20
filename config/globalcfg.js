@@ -55,12 +55,19 @@ Array.prototype.random = function() {
 
 /**
  * 
- * @param {string|Array<string>} searchReplaceValue 
+ * @param {string|Array<string>|RegExp} searchReplaceValue 
  * @param {string|Array<string>} searchSwapValue 
  */
 String.prototype.swapAll = function(searchReplaceValue,searchSwapValue) {
     let returnValue;
     if (searchReplaceValue.constructor === Array && searchSwapValue.constructor === String) {
+    }
+    else if (searchReplaceValue.constructor === RegExp && searchSwapValue.constructor === Array) {
+        let swaps = 0;
+        console.log(this.split(searchReplaceValue));
+        returnValue = this.split(searchReplaceValue).map(v=>
+            v.includes((searchReplaceValue+'').slice(2,-2)) ? v.replace((searchReplaceValue+'').slice(2,-2),searchSwapValue[swaps++]):v
+            ).join('');
     }
     else if (searchReplaceValue.constructor === String && searchSwapValue.constructor === Array) {
         let swaps = 0;
@@ -303,8 +310,8 @@ class ChessBoard {
             break;
         }
         this.fastBoard = Array(this.width*this.height).fill('\u00B7');
-        this.board["c5"] = 'p';
-        console.log(this.board["c5"]);
+        // this.board["c5"] = 'p';
+        // console.log(this.board["c5"]);
         // this.square('d1') = new Pawn();
         this.#updateAscii();
     }
@@ -332,15 +339,20 @@ class ChessBoard {
             }
         )();
         this.ascii = vertPiece+'\n'+(horizPiece+'\n').repeat(this.height)+emptyHoriz.repeat(scaleY-1)+vertPiece+'\n'+bottomPiece;
-        this.ascii = this.ascii.swapAll('\u00B7',this.fastBoard);
+        this.ascii = this.ascii.swapAll(new RegExp(`(\u00B7)`),this.fastBoard);
         let numberList = [...Array(this.height).keys()].map(v=>(String(v+1)).padStart(Math.log10(this.height)+1,' '));
         this.ascii = this.ascii.swapAll('%n',numberList);
     }
     draw() {
     	console.log(this.ascii);
     }
-    load() {
-
+    load(board) {
+        board.flat().forEach((v,i)=>{
+            this.fastBoard[i] = [this.#storedPieces[v].piece];
+            this.fastBoard[i].piece = this.#storedPieces[v];
+        });
+        console.log(this.fastBoard);
+        this.#updateAscii();
     }
     /**
      * 
@@ -355,13 +367,26 @@ class ChessBoard {
             });
         }
     }
-    #storedPieces = {}
+    #storedPieces = {' ':{piece:'\u00B7'}}
 }
 function getAllIndexes(arr, val) {
-    var indexes = [], i;
-    for(i = 0; i < arr.length; i++)
+    var indexes = [];
+    for(let i = 0; i < arr.length; i++)
+    {
         if (arr[i] === val)
+        {
             indexes.push(i);
+        }
+    }
+    return indexes;
+}
+function getAllIncludes(arr, val, index) {
+    var indexes = [];
+    for(let i=0; i<arr.length;i++) {
+        if (arr[i].includes(val)) {
+            indexes.push(i);
+        }
+    }
     return indexes;
 }
 class ChessPiece {
@@ -405,15 +430,18 @@ class ChessPiece {
         let middle = Math.floor(this.pattern.length/2);
         this.takes = {
             static: getAllIndexes(this.pattern.flat(),'+').map(v=>[middle-Math.floor(v/this.pattern.length),middle-(v % this.pattern.length)]),
-            dynamic: getAllIndexes(this.pattern.flat(),'x').map(v=>[middle-Math.floor(v/this.pattern.length),middle-(v % this.pattern.length)]),
+            dynamic: getAllIndexes(this.pattern.flat().map(v=>v[0]),'x').map(v=>[middle-Math.floor(v/this.pattern.length),middle-(v % this.pattern.length)]),
             infinite: getAllIndexes(this.pattern.flat(),'*').map(v=>[middle-Math.floor(v/this.pattern.length),middle-(v % this.pattern.length)]),
-            special: []
+            enpassant: getAllIncludes(this.pattern.flat(),'%').map(v=>[middle-Math.floor(v/this.pattern.length),middle-(v % this.pattern.length)])
         }
         this.moves = {
             static: getAllIndexes(this.pattern.flat(),'+').map(v=>[middle-Math.floor(v/this.pattern.length),middle-(v % this.pattern.length)]),
-            dynamic: getAllIndexes(this.pattern.flat(),'_').map(v=>[middle-Math.floor(v/this.pattern.length),middle-(v % this.pattern.length)]),
+            dynamic: getAllIndexes(this.pattern.flat().map(v=>v[0]),'_').map(v=>[middle-Math.floor(v/this.pattern.length),middle-(v % this.pattern.length)]),
             infinite: getAllIndexes(this.pattern.flat(),'*').map(v=>[middle-Math.floor(v/this.pattern.length),middle-(v % this.pattern.length)]),
-            special: []
+            conditional: {
+                pos: getAllIndexes(this.pattern.flat().map(v=>v[0]),'@').map(v=>[middle-Math.floor(v/this.pattern.length),middle-(v % this.pattern.length)]),
+                condition: this.pattern.flat().filter(v=>v[0]==='@').map(v=>v.replace(/^@\[(.*)\].*$/,'$1')).map(v=>{return (square) => {return square == v}})
+            }
         }
     }
 }
@@ -478,7 +506,7 @@ const Fairy = new ChessPiece({
 const Pawn = new ChessPiece({
     piece: 'P',
     pattern: [
-        [' ', ' ', '_@[2]', ' ',' '],
+        [' ', ' ', '@[2]_', ' ',' '],
         [' ','x%',   '_'  ,'x%',' '],
         [' ', ' ','P=NBRQ', ' ',' '],
         [' ', ' ',   ' '  , ' ',' '],
