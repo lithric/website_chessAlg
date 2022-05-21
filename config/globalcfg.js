@@ -64,7 +64,6 @@ String.prototype.swapAll = function(searchReplaceValue,searchSwapValue) {
     }
     else if (searchReplaceValue.constructor === RegExp && searchSwapValue.constructor === Array) {
         let swaps = 0;
-        console.log(this.split(searchReplaceValue));
         returnValue = this.split(searchReplaceValue).map(v=>
             v.includes((searchReplaceValue+'').slice(2,-2)) ? v.replace((searchReplaceValue+'').slice(2,-2),searchSwapValue[swaps++]):v
             ).join('');
@@ -257,7 +256,11 @@ String.prototype.flipCase = function() {
 }
 
 class ChessBoard {
-    ascii = '';
+    #ascii = '';
+    get ascii() {
+        this.#updateAscii();
+        return this.#ascii;
+    }
     #asciiBorder = ['-','|','#'];
     #asciiEmpty = '\u00B7';
     #asciiScaleX = 3;
@@ -309,11 +312,7 @@ class ChessBoard {
                 console.error('invalid board dimensions');
             break;
         }
-        this.fastBoard = Array(this.width*this.height).fill('\u00B7');
-        // this.board["c5"] = 'p';
-        // console.log(this.board["c5"]);
-        // this.square('d1') = new Pawn();
-        this.#updateAscii();
+        this.fastBoard = Array(this.width*this.height).fill(this.#asciiEmpty);
     }
     #updateAscii() {
         let scaleX = this.#asciiScaleX;
@@ -338,21 +337,39 @@ class ChessBoard {
                 return returnValue;
             }
         )();
-        this.ascii = vertPiece+'\n'+(horizPiece+'\n').repeat(this.height)+emptyHoriz.repeat(scaleY-1)+vertPiece+'\n'+bottomPiece;
-        this.ascii = this.ascii.swapAll(new RegExp(`(\u00B7)`),this.fastBoard);
+        this.#ascii = vertPiece+'\n'+(horizPiece+'\n').repeat(this.height)+emptyHoriz.repeat(scaleY-1)+vertPiece+'\n'+bottomPiece;
+        this.#ascii = this.#ascii.swapAll(new RegExp(`(${this.#asciiEmpty})`),this.fastBoard);
         let numberList = [...Array(this.height).keys()].map(v=>(String(v+1)).padStart(Math.log10(this.height)+1,' '));
-        this.ascii = this.ascii.swapAll('%n',numberList);
+        this.#ascii = this.#ascii.swapAll('%n',numberList);
     }
     draw() {
-    	console.log(this.ascii);
+        this.#updateAscii();
+    	console.log(this.#ascii);
     }
     load(board) {
         board.flat().forEach((v,i)=>{
-            this.fastBoard[i] = [this.#storedPieces[v].piece];
-            this.fastBoard[i].piece = this.#storedPieces[v];
+            this.fastBoard[i] = [this.#storedPieces[v]?.piece ?? this.#asciiEmpty];
+            if (this.fastBoard[i][0] !== this.#asciiEmpty) {
+                this.fastBoard[i].piece = this.#storedPieces[v];
+            }
         });
         console.log(this.fastBoard);
-        this.#updateAscii();
+    }
+    /**
+     * 
+     * @returns a generator of moves
+     */
+    *moves() {
+        let x=-1;
+        let y=-1;
+        let i=-1;
+        let width = this.width;
+        for (let piece of this.fastBoard) {
+            i++;
+            x = x+1 % width;
+            y = y+1 -Math.ceil(x/width);
+        }
+        console.log("ok");
     }
     /**
      * 
@@ -367,7 +384,7 @@ class ChessBoard {
             });
         }
     }
-    #storedPieces = {' ':{piece:'\u00B7'}}
+    #storedPieces = {' ':{}}
 }
 function getAllIndexes(arr, val) {
     var indexes = [];
@@ -439,8 +456,8 @@ class ChessPiece {
             dynamic: getAllIndexes(this.pattern.flat().map(v=>v[0]),'_').map(v=>[middle-Math.floor(v/this.pattern.length),middle-(v % this.pattern.length)]),
             infinite: getAllIndexes(this.pattern.flat(),'*').map(v=>[middle-Math.floor(v/this.pattern.length),middle-(v % this.pattern.length)]),
             conditional: {
-                pos: getAllIndexes(this.pattern.flat().map(v=>v[0]),'@').map(v=>[middle-Math.floor(v/this.pattern.length),middle-(v % this.pattern.length)]),
-                condition: this.pattern.flat().filter(v=>v[0]==='@').map(v=>v.replace(/^@\[(.*)\].*$/,'$1')).map(v=>{return (square) => {return square == v}})
+                pos: getAllIndexes(this.pattern.flat().map(v=>v[0]),'[').map(v=>[middle-Math.floor(v/this.pattern.length),middle-(v % this.pattern.length)]),
+                condition: this.pattern.flat().filter(v=>v[0]==='[').map(v=>v.replace(/^\[(.*)\].*$/,'$1')).map(v=>{return (square) => {return square == v}})
             }
         }
     }
@@ -450,10 +467,11 @@ class ChessPiece {
  ** +: can move and take on this square
  ** -: if square is not attacked
  ** #: can be checkmated
- ** !: is illegal to blunder (can be checked)
+ ** !: is illegal to lose this piece (can be checked)
  ** _: can move to this square
  ** x: can take on this square
  ** $: at this edge of the board
+ ** []: specifies a certain square (ex: x[0,0] means "can take on square (0,0) a.k.a a1")
  ** @[]: at "[]" square (row, column)
  ** @[1]: when piece is at the 1st row
  ** @[$-1]: at one away from final row of the board
@@ -506,7 +524,7 @@ const Fairy = new ChessPiece({
 const Pawn = new ChessPiece({
     piece: 'P',
     pattern: [
-        [' ', ' ', '@[2]_', ' ',' '],
+        [' ', ' ', '[2]_', ' ',' '],
         [' ','x%',   '_'  ,'x%',' '],
         [' ', ' ','P=NBRQ', ' ',' '],
         [' ', ' ',   ' '  , ' ',' '],
@@ -545,3 +563,5 @@ Gambit.load([
     ['R','N','B','Q','K','B','N','R']
 ])
 Gambit.draw();
+let future = Gambit.moves(); // returns a generator of moves
+future.next();
