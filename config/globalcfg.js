@@ -384,7 +384,13 @@ class ChessBoard {
             });
         }
     }
+    rules(chessRules) {
+        for (let rule of chessRules) {
+            this.#storedRules[rule]
+        }
+    }
     #storedPieces = {' ':{}}
+    #storedRules = {}
 }
 function getAllIndexes(arr, val) {
     var indexes = [];
@@ -462,6 +468,12 @@ class ChessPiece {
         }
     }
 }
+
+class ChessRule {
+    constructor({symbol,condition}={}) {
+        this.symbol = symbol;
+    }
+}
 /**
  ** *: can move and take infinitely in this direction
  ** +: can move and take on this square
@@ -481,6 +493,11 @@ class ChessPiece {
  ** &: and
  ** %: can en-passant on this square (defaults to pawn to en-passant)
  */
+
+const Castling = new ChessRule({
+    symbol: '^'
+});
+const EnPassant = new ChessRule();
 
  const Bishop = new ChessPiece({
     piece: 'B',
@@ -551,6 +568,10 @@ Gambit.store([
     Knight,
     Rook,
     Pawn
+])
+Gambit.rules([
+    Castling,
+    EnPassant
 ])
 Gambit.load([
     ['r','n','b','q','k','b','n','r'],
