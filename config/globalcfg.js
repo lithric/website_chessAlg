@@ -276,9 +276,9 @@ class ChessBoard {
             if (i % this.width === 0) {
                 make.push([]);
             }
-            make[Math.floor(i/this.width)].push(this.fastBoard[i]);
-            Object.defineProperty(make,(squares[(i % this.width) % 8] + rep(i % this.width,this.width-1)).split('').reverse().join('')+make.length,{
-                get: ()=>{return this.fastBoard[i]},
+            make[Math.floor(i/this.width)].unshift(this.fastBoard[this.fastBoard.length-i-1]);
+            Object.defineProperty(make,(squares[((this.fastBoard.length-i-1) % this.width) % 8] + rep(i % this.width,this.width-1)).split('').reverse().join('')+make.length,{
+                get: ()=>{return this.fastBoard[this.fastBoard.length-i-1]},
                 set: (v) => {
                     this.fastBoard[i] = v;
                 }
@@ -312,7 +312,7 @@ class ChessBoard {
                 console.error('invalid board dimensions');
             break;
         }
-        this.fastBoard = Array(this.width*this.height).fill(this.#asciiEmpty);
+        this.fastBoard = Array(this.width*this.height);
     }
     #updateAscii() {
         let scaleX = this.#asciiScaleX;
@@ -338,8 +338,8 @@ class ChessBoard {
             }
         )();
         this.#ascii = vertPiece+'\n'+(horizPiece+'\n').repeat(this.height)+emptyHoriz.repeat(scaleY-1)+vertPiece+'\n'+bottomPiece;
-        this.#ascii = this.#ascii.swapAll(new RegExp(`(${this.#asciiEmpty})`),this.fastBoard);
-        let numberList = [...Array(this.height).keys()].map(v=>(String(v+1)).padStart(Math.log10(this.height)+1,' '));
+        this.#ascii = this.#ascii.swapAll(new RegExp(`(${this.#asciiEmpty})`),this.fastBoard.map(v=>v[0] ? v:[this.#asciiEmpty]));
+        let numberList = [...Array(this.height).keys()].reverse().map(v=>(String(v+1)).padStart(Math.log10(this.height)+1,' '));
         this.#ascii = this.#ascii.swapAll('%n',numberList);
     }
     draw() {
@@ -347,29 +347,79 @@ class ChessBoard {
     	console.log(this.#ascii);
     }
     load(board) {
+        let x=-1;
+        let y=-1;
+        let width = this.width;
         board.flat().forEach((v,i)=>{
-            this.fastBoard[i] = [this.#storedPieces[v]?.piece ?? this.#asciiEmpty];
-            if (this.fastBoard[i][0] !== this.#asciiEmpty) {
+            x = x+1 % width;
+            y = y+1 -Math.ceil(x/width);
+            this.fastBoard[i] = [this.#storedPieces[v]?.piece ?? null];
+            if (this.fastBoard[i][0]) {
                 this.fastBoard[i].piece = this.#storedPieces[v];
+                this.fastBoard[i].moved = false;
+                this.fastBoard[i].fastMove = function(width,cur,move,{testLegal= true,ifLegal=false}={}) {
+                    let returnValue = {};
+                    returnValue.bounded = true;
+                    let moveVal = cur+move[0]*width+move[1];
+                    if (moveVal >= this.fastBoard.length) {
+                        returnValue.bounded = false;
+                        moveVal = this.fastBoard.length-1;
+                    };
+                    if (moveVal < 0) {
+                        returnValue.bounded = false;
+                        moveVal = 0;
+                    };
+                    if (testLegal || ifLegal) {
+                        returnValue.legal = false;
+                        let piece = this.fastBoard[cur].piece;
+                        for (let condition of piece.conditions.moves) {
+                            returnValue.legal ||= condition(this,piece,move,cur) && condition.allowed;
+                        }
+                    }
+                    if (cur === moveVal) return returnValue;
+                    if (!ifLegal || ifLegal && returnValue.legal) {
+                        this.fastBoard[cur].moved = true;
+                        this.fastBoard[moveVal] = this.fastBoard[cur];
+                        this.fastBoard[cur] = [null];
+                    }
+                    return returnValue;
+                }.bind(this,width,i);
+                this.fastBoard[i].move = function(tCol,tRow,cur,move,moveA) {
+                    let moveVal = [tCol,tRow];
+                    if (move.constructor === Array) {
+                        moveVal = move;
+                    }
+                    else if (moveA) {
+                        moveVal = [move,moveA];
+                    }
+                    else {
+                        moveVal = [move,0];
+                    }
+                    return this.fastBoard[cur].fastMove(moveVal);
+                }.bind(this,x,y,i);
             }
         });
-        console.log(this.fastBoard);
     }
     /**
      * 
      * @returns a generator of moves
      */
     *moves() {
+        console.time('mine');
         let x=-1;
         let y=-1;
         let i=-1;
         let width = this.width;
-        for (let piece of this.fastBoard) {
+        for (let square of this.fastBoard) {
             i++;
             x = x+1 % width;
             y = y+1 -Math.ceil(x/width);
+            if (square.piece === undefined) continue;
+            let piece = square.piece;
+            piece.piece,piece.getMoveGroup['infinite']?.(piece,i);
         }
         console.log("ok");
+        console.timeEnd('mine');
     }
     /**
      * 
@@ -378,10 +428,23 @@ class ChessBoard {
     store(chessPieces) {
         for (let piece of chessPieces) {
             this.#storedPieces[piece.piece] = piece;
+            for (let rule in this.#storedPieces[piece.piece].rules) {
+                this.#storedPieces[piece.piece].rules[rule].action = this.#storedPieces[piece.piece].rules[rule].action?.bind(this);
+                this.#storedPieces[piece.piece].getMoveGroup[rule] = this.#storedPieces[piece.piece].getMoveGroup[rule]?.bind(this);
+            }
+            for (let group in this.#storedPieces[piece.piece].getMoveGroup) {
+                this.#storedPieces[piece.piece].getMoveGroup[group] = this.#storedPieces[piece.piece].getMoveGroup[group]?.bind(this);
+            }
             this.#storedPieces[piece.piece.toLowerCase()] = new ChessPiece({
                 piece: piece.piece.toLowerCase(),
                 pattern:piece.pattern.reverse().map(arr=>arr.map(v=>v[0]===piece.piece ? v.toLowerCase():v))
             });
+            for (let rule in this.#storedPieces[piece.piece.toLowerCase()].rules) {
+                this.#storedPieces[piece.piece.toLowerCase()].rules[rule].action = this.#storedPieces[piece.piece.toLowerCase()].rules[rule].action?.bind(this);
+            }
+            for (let group in this.#storedPieces[piece.piece.toLowerCase()].getMoveGroup) {
+                this.#storedPieces[piece.piece.toLowerCase()].getMoveGroup[group] = this.#storedPieces[piece.piece.toLowerCase()].getMoveGroup[group]?.bind(this);
+            }
         }
     }
     rules(chessRules) {
@@ -413,22 +476,24 @@ function getAllIncludes(arr, val, index) {
     return indexes;
 }
 class ChessPiece {
-    constructor({piece='X', pattern=[['X']]}={}) {
+    constructor({piece='X', pattern=[['X']],rules}={}) {
         this.piece = piece;
-        if (pattern.every(v=>v.constructor === ChessPiece)) {
-            if (pattern.every(v=>v.pattern.length === pattern[0].pattern.length)) {
+        this.rules = DEFAULT_CHESS_RULES;
+        if (pattern[0].constructor !== Array || pattern[0].constructor === ChessPiece || pattern[0][0].constructor === Array) {
+            pattern = pattern.map(v=>v.constructor === ChessPiece ? v.pattern:v);
+            if (pattern.every(v=>v.length === pattern[0].length)) {
                 let combinedPattern = pattern.reduce((acc,cur)=>
                     acc.map((v1,i)=>
-                    cur.pattern[i].map((v2,j)=>
+                    cur[i].map((v2,j)=>
                         Math.floor(acc.length/2) !== i || Math.floor(acc.length/2) !== j ? v2 !== ' ' ? v2:v1[j]:piece
-                    )),pattern[0].pattern
+                    ))
                 )
                 this.pattern = combinedPattern;
             }
             else {
-                let size = Math.max(...pattern.map(v=>v.pattern.length));
+                let size = Math.max(...pattern.map(v=>v.length));
                 let parsedPatterns = pattern.map(pat=>{
-                    let pot = pat.pattern.map(v=>[...Array(Math.floor(size-v.length)/2).fill(' '),...v,...Array(Math.floor(size-v.length)/2).fill(' ')]);
+                    let pot = pat.map(v=>[...Array(Math.floor(size-v.length)/2).fill(' '),...v,...Array(Math.floor(size-v.length)/2).fill(' ')]);
                     while(pot.length < size) {
                         pot.push(Array(size).fill(' '));
                         pot.unshift(Array(size).fill(' '));
@@ -444,34 +509,44 @@ class ChessPiece {
                 this.pattern = combinedPattern;
             }
         }
-        else if (pattern.some(v=>v.constructor === ChessPiece)) {
-            console.error('invalid pattern group');
-        }
         else {
             this.pattern = pattern;
         }
-        let middle = Math.floor(this.pattern.length/2);
-        this.takes = {
-            static: getAllIndexes(this.pattern.flat(),'+').map(v=>[middle-Math.floor(v/this.pattern.length),middle-(v % this.pattern.length)]),
-            dynamic: getAllIndexes(this.pattern.flat().map(v=>v[0]),'x').map(v=>[middle-Math.floor(v/this.pattern.length),middle-(v % this.pattern.length)]),
-            infinite: getAllIndexes(this.pattern.flat(),'*').map(v=>[middle-Math.floor(v/this.pattern.length),middle-(v % this.pattern.length)]),
-            enpassant: getAllIncludes(this.pattern.flat(),'%').map(v=>[middle-Math.floor(v/this.pattern.length),middle-(v % this.pattern.length)])
-        }
-        this.moves = {
-            static: getAllIndexes(this.pattern.flat(),'+').map(v=>[middle-Math.floor(v/this.pattern.length),middle-(v % this.pattern.length)]),
-            dynamic: getAllIndexes(this.pattern.flat().map(v=>v[0]),'_').map(v=>[middle-Math.floor(v/this.pattern.length),middle-(v % this.pattern.length)]),
-            infinite: getAllIndexes(this.pattern.flat(),'*').map(v=>[middle-Math.floor(v/this.pattern.length),middle-(v % this.pattern.length)]),
-            conditional: {
-                pos: getAllIndexes(this.pattern.flat().map(v=>v[0]),'[').map(v=>[middle-Math.floor(v/this.pattern.length),middle-(v % this.pattern.length)]),
-                condition: this.pattern.flat().filter(v=>v[0]==='[').map(v=>v.replace(/^\[(.*)\].*$/,'$1')).map(v=>{return (square) => {return square == v}})
+        Object.assign(this.rules,rules);
+        this.getMoveGroup = {};
+        let patternLength = this.pattern.length;
+        let middle = Math.floor(patternLength/2);
+        this.conditions = {moves:[]};
+        let gift = {moves:{}};
+        for (let rule in this.rules) {
+            if (!getAllIncludes(this.pattern.flat(),this.rules[rule].symbol).length) {
+                continue;
+            }
+            this.getMoveGroup[this.rules[rule].stored] = this.rules[rule].getMoves;
+            this.conditions.moves.push(this.rules[rule].condition);
+            this.conditions.moves[this.conditions.moves.length-1].allowed = this.rules[rule].allow;
+            gift.moves[this.rules[rule].stored] = getAllIncludes(
+                this.pattern.flat(),
+                this.rules[rule].symbol)
+                .map(v=>[middle-Math.floor(v/patternLength),middle-(v % patternLength)]);
+            if (gift.moves[this.rules[rule].stored].length === 0) {
+                delete gift.moves[this.rules[rule].stored];
             }
         }
+        this.conditions.moves = this.conditions.moves.filter(Boolean);
+        this.moves = gift.moves;
     }
 }
 
 class ChessRule {
-    constructor({symbol,condition}={}) {
+    constructor({symbol,allow=true,symbolMode='enable',condition,stored,action,moves}={}) {
         this.symbol = symbol;
+        this.allow = allow;
+        this.symbolMode = symbolMode === 'disable' ? 'disable':'enable';
+        this.stored = stored;
+        this.condition = condition;
+        this.action = action;
+        this.getMoves = moves;
     }
 }
 /**
@@ -494,12 +569,219 @@ class ChessRule {
  ** %: can en-passant on this square (defaults to pawn to en-passant)
  */
 
-const Castling = new ChessRule({
-    symbol: '^'
+const DEFAULT_CHESS_RULES = {};
+DEFAULT_CHESS_RULES.INFINITE_TRAVEL = new ChessRule({
+    symbol: '*',
+    stored: 'infinite',
+    condition: function(board,piece,move,cur) {
+        let valid = piece.moves['infinite'].find(v=>
+            v[0]*move[1] === v[1]*move[0] &&
+            (move[0] % v[0] === 0 || move[0] === v[0]) &&
+            (move[1] % v[1] === 0 || move[1] === v[1])
+            );
+        if (!valid) return false;
+        for (let i=[0,0]; i[0]!==move[0]||i[1]!==move[1];(i[0]+=valid[0],i[1]+=valid[1])) {
+            let moveVal = i[0]*board.width+i[1]+cur;
+            if (board.fastBoard[moveVal].piece) {
+                let friend = piece.rules['FRIENDLY_CAPTURES'].condition(board,piece,move,cur,{test: true});
+                friend = friend && !piece.rules['FRIENDLY_CAPTURES'].allow;
+                return i[0]===move[0] && i[1]===move[1] && friend;
+            }
+        }
+        return true;
+    },
+    /**
+     * 
+     * @this {ChessBoard}
+     */
+    moves: function(piece,cur) {
+        let returnValue = [];
+        let x = cur % this.width;
+        let y = Math.floor(cur/this.width);
+        let px = this.width-x-1;
+        let py = this.height-y-1;
+        for (let direction of piece.moves['infinite']) {
+            let pxOften = Math.floor(Math.abs(direction[1] < 0 ?
+                x/(direction[1] || 1):
+                px/(direction[1] || 1)
+                ));
+            let pyOften = Math.floor(Math.abs(direction[0] < 0 ?
+                y/(direction[0] || 1):
+                py/(direction[0] || 1)
+                ));
+            let often = Math.min(pxOften,pyOften);
+            let crdOften = [direction[0]*often,direction[1]*often];
+            for (let i=[0,0]; i[0]!==crdOften[0]||i[1]!==crdOften[1];(i[0]+=direction[0],i[1]+=direction[1])) {
+                let moveVal = (i[0]+direction[0])*this.width+(i[1]+direction[1])+cur;
+                let parsedMoveVal = [Math.floor(moveVal/this.width),moveVal % this.width];
+                let friend = piece.rules['FRIENDLY_CAPTURES'].condition(this,piece,parsedMoveVal,cur,{test: true});
+                friend = friend && !piece.rules['FRIENDLY_CAPTURES'].allow;
+                if (friend) {
+                    break;
+                }
+                if(i[0]===crdOften[0] && i[1]===crdOften[1] && !friend) {
+                    returnValue.push(parsedMoveVal);
+                    break;
+                }
+                returnValue.push(parsedMoveVal);
+            }
+        }
+        return returnValue;
+    },
+    /**
+     * 
+     * @this {ChessBoard}
+     */
+    action: function(piece,move,cur) {
+        let moveVal = move[0]*this.width+move[1];
+        this.fastBoard[moveVal] = this.fastBoard[cur];
+        this.fastBoard[cur] = [null];
+    }
 });
-const EnPassant = new ChessRule();
+DEFAULT_CHESS_RULES.CAPTURES = new ChessRule({
+    symbol: 'x',
+    stored: 'capture',
+    condition: function(board,piece,move,cur) {
+        if (!piece.moves['capture'].length) return false;
+        let friend = piece.rules['FRIENDLY_CAPTURES'].condition(board,piece,move,cur,{test: true});
+        friend = friend && !piece.rules['FRIENDLY_CAPTURES'].allow;
+        return piece.moves['capture'].some(v=>v[0]===move[0]&&v[1]===move[1]) && friend;
+    },
+    action: function(piece,move,cur) {
+        let moveVal = move[0]*this.width+move[1];
+        this.fastBoard[moveVal] = this.fastBoard[cur];
+        this.fastBoard[cur] = [null];
+    }
+});
+DEFAULT_CHESS_RULES.MOVES = new ChessRule({
+    symbol: '_',
+    stored: 'move',
+    condition: function(board,piece,move,cur) {
+        let moveVal = move[0]*board.width+move[1];
+        if (!piece.moves['move'].length) return false;
+        if (board.fastBoard[moveVal].piece) return false;
+        return piece.moves['move'].some(v=>v[0]===move[0]&&v[1]===move[1]);
+    },
+    action: function(piece,move,cur) {
+        let moveVal = move[0]*this.width+move[1];
+        this.fastBoard[moveVal] = this.fastBoard[cur];
+        this.fastBoard[cur] = [null];
+    }
+});
+DEFAULT_CHESS_RULES.TAKES = new ChessRule({
+    symbol: '+',
+    stored: 'static',
+    condition: function(board,piece,move,cur) {
+        let valid = piece.moves['static'].some(v=>v[0]===move[0]&&v[1]===move[1]);
+        let friend = piece.rules['FRIENDLY_CAPTURES'].condition(board,piece,move,cur,{test: true});
+        friend = friend && !piece.rules['FRIENDLY_CAPTURES'].allow;
+        if (friend) return false;
+        if (!piece.moves['static'].length) return false;
+        if (!valid) return false;
+        return true;
+    },
+    action: function(piece,move,cur) {
+        let moveVal = move[0]*this.width+move[1];
+        this.fastBoard[moveVal] = this.fastBoard[cur];
+        this.fastBoard[cur] = [null];
+    }
+});
+DEFAULT_CHESS_RULES.FRIENDLY_CAPTURES = new ChessRule({
+    symbol: '~',
+    allow: false,
+    symbolMode: 'disable',
+    stored: 'friendly',
+    condition:  function(board,piece,move,cur,{test = false} = {}) {
+        let moveVal = move[0]*board.width+move[1];
+        if (!test && !piece.moves['friendly'].length) return false;
+        if (!test && !piece.moves['friendly'].some(v=>v[0]===move[1]&&v[1]===move[1])) return false;
+        if (!board.fastBoard[moveVal].piece) return false;
+        if (isUpperCase(board.fastBoard[moveVal][0]) !== isUpperCase(piece.piece)) return false;
+        return true;
+    },
+    action: function(piece,move,cur) {
+        let moveVal = move[0]*this.width+move[1];
+        this.fastBoard[moveVal] = this.fastBoard[cur];
+        this.fastBoard[cur] = [null];
+    }
+});
+DEFAULT_CHESS_RULES.KING_SIDE_CASTLING = new ChessRule({
+    symbol: '>',
+    stored: 'KCastling',
+    condition: function(board,piece,move,cur) {
+        let moveVal = move[0]*board.width+move[1];
+        let rook = board.fastBoard[moveVal+1];
+        if(!piece.moves['KCastling'].length) return false; 
+        if(rook.piece !== 'R' || rook.piece !== 'r') return false;
+        if(piece.moved) return false;
+        if(rook.moved) return false;
+        if(cur >= moveVal) return false;
+        return true;
+    },
+    action: function(piece,move,cur) {
+        let moveVal = move[0]*this.width+move[1];
+        this.fastBoard[moveVal] = this.fastBoard[cur];
+        this.fastBoard[cur+1] = this.fastBoard[moveVal+1];
+        this.fastBoard[cur] = [null];
+    }
+});
+DEFAULT_CHESS_RULES.QUEEN_SIDE_CASTLING = new ChessRule({
+    symbol: '<',
+    stored: 'QCastling',
+    condition: function(board,piece,move,cur) {
+        if (!piece.moves['QCastling'].length) return false;
+        let moveVal = move[0]*board.width+move[1];
+        let rook = board.fastBoard[moveVal-2];
+        if(rook.piece !== 'R' || rook.piece !== 'r') return false;
+        if(piece.moved) return false;
+        if(rook.moved) return false;
+        if(cur <= moveVal) return false;
+        return true;
+    }
+});
+DEFAULT_CHESS_RULES.PASSANT = new ChessRule({
+    symbol: '^',
+    stored: 'passant',
+    condition:  function(board,piece,move,cur) {
+        if (!piece.moves['passant'].length) return false;
+        return piece.moved;
+    },
+    /**
+     * @this {ChessBoard}
+     */
+    action: function(piece,move,cur) {
+        let passant = (move[0]-1)*this.width+move[1];
+        this.fastBoard[passant].enpassant = true;
+    }
+});
+DEFAULT_CHESS_RULES.ENPASSANT = new ChessRule({
+    symbol: '%',
+    stored: 'enpassant',
+    condition: function(board,piece,move,cur) {
+        if (!piece.moves['enpassant'].length) return false;
+        let moveVal = move[0]*board.width+move[1];
+        return board.fastBoard[moveVal].enpassant ?? true;
+    },
+    /**
+     * @this {ChessBoard}
+     */
+    action: function(piece,move,cur) {
+        let moveVal = move[0]*this.width+move[1];
+        this.fastBoard[moveVal] = this.fastBoard[cur];
+        this.fastBoard[cur] = [null];
+    }
+});
+DEFAULT_CHESS_RULES.PROMOTION = new ChessRule({
+    symbol: '=',
+    stored: 'promote',
+    condition: function(board,piece,move,cur) {
+        if (!piece.moves['promote'].length) return false;
+        let moveVal =  move[0]*board.width+move[1];
+        return moveVal > board.width*(board.height-1) || moveVal < board.width;
+    }
+})
 
- const Bishop = new ChessPiece({
+const Bishop = new ChessPiece({
     piece: 'B',
     pattern: [
         ['*',' ','*'],
@@ -541,20 +823,22 @@ const Fairy = new ChessPiece({
 const Pawn = new ChessPiece({
     piece: 'P',
     pattern: [
-        [' ', ' ', '[2]_', ' ',' '],
-        [' ','x%',   '_'  ,'x%',' '],
-        [' ', ' ','P=NBRQ', ' ',' '],
-        [' ', ' ',   ' '  , ' ',' '],
-        [' ', ' ',   ' '  , ' ',' ']
+        [' ', ' ','^' ,' ' ,' '],
+        [' ','x%','_' ,'x%',' '],
+        [' ', ' ','P=',' ' ,' '],
+        [' ', ' ',' ' ,' ' ,' '],
+        [' ', ' ',' ' ,' ' ,' ']
     ]
 });
 
 const King = new ChessPiece({
     piece: 'K',
     pattern: [
-        ['+','+','+'],
-        ['+','K#!','+'],
-        ['+','+','+']
+        [' ',' ',' ',' ',' '],
+        [' ','+','+','+',' '],
+        ['<','+','K#!','+','>'],
+        [' ','+','+','+',' '],
+        [' ',' ',' ',' ',' ']
     ]
 });
 
@@ -569,14 +853,14 @@ Gambit.store([
     Rook,
     Pawn
 ])
-Gambit.rules([
-    Castling,
-    EnPassant
-])
+// Gambit.rules([
+//     Castling,
+//     EnPassant
+// ])
 Gambit.load([
     ['r','n','b','q','k','b','n','r'],
-    ['p','p','p','p','p','p','p','p'],
-    [' ',' ',' ',' ',' ',' ',' ',' '],
+    ['p','p',' ','p','p','p','p','p'],
+    [' ',' ','p',' ',' ',' ',' ',' '],
     [' ',' ',' ',' ',' ',' ',' ',' '],
     [' ',' ',' ',' ',' ',' ',' ',' '],
     [' ',' ',' ',' ',' ',' ',' ',' '],

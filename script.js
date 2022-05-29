@@ -1072,6 +1072,10 @@ chess1.atdrop.push(
 )
 
 //chess2.put({type: "Q", color: "w"}, "e4");
+var bogg = new Chess();
+console.time();
+bogg.moves();
+console.timeEnd();
 
 window.startPosition = function() {
     var $option1 = document.getElementById("turn-white").checked;
