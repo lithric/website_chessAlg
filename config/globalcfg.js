@@ -357,7 +357,7 @@ class ChessBoard {
             if (this.fastBoard[i][0]) {
                 this.fastBoard[i].piece = this.#storedPieces[v];
                 this.fastBoard[i].moved = false;
-                this.fastBoard[i].fastMove = function(width,cur,move,{testLegal= true,ifLegal=false}={}) {
+                this.fastBoard[i].fastMove = function(width,cur,curPos,move,{testLegal= true,ifLegal=false}={}) {
                     let returnValue = {};
                     returnValue.bounded = true;
                     let moveVal = cur+move[0]*width+move[1];
@@ -372,8 +372,17 @@ class ChessBoard {
                     if (testLegal || ifLegal) {
                         returnValue.legal = false;
                         let piece = this.fastBoard[cur].piece;
+                        let captured = this.fastBoard[moveVal].piece;
                         for (let condition of piece.conditions.moves) {
-                            returnValue.legal ||= condition(this,piece,move,cur) && condition.allowed;
+                            returnValue.legal ||= condition({
+                                board:this,
+                                piece:piece,
+                                move:move,
+                                moveVal:moveVal,
+                                cur:curPos,
+                                curVal:cur,
+                                captured: captured
+                            }) && condition.allowed;
                         }
                     }
                     if (cur === moveVal) return returnValue;
@@ -383,7 +392,7 @@ class ChessBoard {
                         this.fastBoard[cur] = [null];
                     }
                     return returnValue;
-                }.bind(this,width,i);
+                }.bind(this,width,i,[y,x]);
                 this.fastBoard[i].move = function(tCol,tRow,cur,move,moveA) {
                     let moveVal = [tCol,tRow];
                     if (move.constructor === Array) {
@@ -539,7 +548,7 @@ class ChessPiece {
 }
 
 class ChessRule {
-    constructor({symbol,allow=true,symbolMode='enable',condition,stored,action,moves}={}) {
+    constructor({symbol,allow=true,symbolMode='enable',condition,stored,action,moves,test}={}) {
         this.symbol = symbol;
         this.allow = allow;
         this.symbolMode = symbolMode === 'disable' ? 'disable':'enable';
@@ -547,6 +556,24 @@ class ChessRule {
         this.condition = condition;
         this.action = action;
         this.getMoves = moves;
+        this.test = test;
+    }
+}
+
+class ChessBoardProperty {
+    constructor({}) {
+
+    }
+}
+
+class ChessPieceProperty {
+    constructor({}) {
+    }
+}
+
+class ChessAction {
+    constructor({action}) {
+        this.action = action;
     }
 }
 /**
@@ -570,10 +597,179 @@ class ChessRule {
  */
 
 const DEFAULT_CHESS_RULES = {};
+const DEFAULT_CHESS_ACTIONS = {};
+DEFAULT_CHESS_ACTIONS.CAPTURE = new ChessAction({
+    name: 'capture',
+    action: 'move',
+    allowed: true,
+    condition: function({capture}) {
+        return !!capture;
+    }
+})
+DEFAULT_CHESS_ACTIONS.SELF_CAPTURE = new ChessAction({
+    name: 'self-capture',
+    action: 'capture',
+    allowed: false,
+    condition: function({curVal,moveVal,board}) {
+        return !(
+            isUpperCase(board.fastBoard[moveVal][0]) === 
+            isUpperCase(board.fastBoard[curVal][0])
+        ) || this.allowed;
+    }
+})
+DEFAULT_CHESS_ACTIONS.MOVE = new ChessAction({
+    name: 'move',
+    action: function({curVal,moveVal}) {
+        this.fastBoard[moveVal] = this.fastBoard[curVal];
+        this.fastBoard[curVal] = [null];
+    },
+    allowed: true,
+    condition: function() {
+        return this.allowed;
+    }
+})
+DEFAULT_CHESS_ACTIONS.KING_SIDE_CASTLE = new ChessAction({
+    name: 'O-O',
+    action: function({moveVal,curVal}) {
+        this.fastBoard[moveVal] = this.fastBoard[curVal];
+        this.fastBoard[curVal+1] = this.fastBoard[moveVal+1];
+        this.fastBoard[curVal] = [null];
+        this.fastBoard[moveVal+1] = [null];
+    },
+    allowed: true,
+    condition: function({piece}) {
+        return piece.canCastle;
+    }
+})
+DEFAULT_CHESS_ACTIONS.INFINITE_TRAVEL = new ChessAction({
+    name: 'travel',
+    action: 'move',
+    allowed: true,
+    condition: function({piece,curVal,board,move}) {
+        if (!piece.canTravel) return false;
+        let valid = piece.moves['travel'].find(v=>
+            v[0]*move[1] === v[1]*move[0] &&
+            (move[0] % v[0] === 0 || move[0] === v[0]) &&
+            (move[1] % v[1] === 0 || move[1] === v[1])
+            );
+        if (!valid) return false;
+        for (let i=[0,0]; i[0]!==move[0]||i[1]!==move[1];(i[0]+=valid[0],i[1]+=valid[1])) {
+            let moveVal = i[0]*board.width+i[1]+curVal;
+            let captured = board.fastBoard[moveVal].piece;
+            if (captured) {
+                if (i[0]!==move[0]||i[1]!==move[1]) return false;
+                return true;
+            }
+        }
+        return true;
+    }
+})
+const DEFAULT_CHESS_PIECE_PROPERTIES = {};
+DEFAULT_CHESS_PIECE_PROPERTIES.ORIENTATION = new ChessPieceProperty({
+    property: 'orientation',
+    value: null
+});
+DEFAULT_CHESS_PIECE_PROPERTIES.ATTACKED = new ChessPieceProperty({
+    property: 'attacked',
+    value: false
+})
+DEFAULT_CHESS_PIECE_PROPERTIES.CHECKABLE = new ChessPieceProperty({
+    symbol: '!',
+    property: 'checkable',
+    symbolMode: 'enable',
+    value: false
+})
+DEFAULT_CHESS_PIECE_PROPERTIES.CAN_CASTLE = new ChessPieceProperty({
+    symbol: '/',
+    property: 'canCastle',
+    symbolMode: 'enable',
+    value: false,
+    get: function({piece,curVal,board}) {
+        if (!piece.canCastle) return false;
+        if (piece.moved) return false;
+        if (piece.castled) return false;
+        let castleVal = -1;
+        for (let i=curVal - (curVal % board.width); i<curVal; i++) {
+            if (board.fastBoard[i].isCastle) {
+                castleVal = i;
+                break;
+            }
+        }
+        if (castleVal<0) {
+            let i = curVal;
+            while(i-- > curVal-(curVal % board.width)) {
+                if (board.fastBoard[i].isCastle) {
+                    castleVal = i;
+                    break;
+                }
+            }
+        };
+        if (castleVal<0) return false;
+        if (board.fastBoard[castleVal].moved) return false;
+        for (let i=1; i<castleVal-curVal;i++) {
+            if (board.fastBoard[curVal+i].piece) return false;
+            if (board.fastBoard[curVal+i].attacked) return false;
+        }
+        if (piece.inCheck) return false;
+        return true;
+    }
+}); // done
+DEFAULT_CHESS_PIECE_PROPERTIES.CASTLED = new ChessPieceProperty({
+    property: 'castled',
+    value: false
+})
+DEFAULT_CHESS_PIECE_PROPERTIES.IS_CASTLE = new ChessPieceProperty({
+    symbol: '&',
+    property: 'isCastle',
+    symbolMode: 'enable',
+    value: false
+})
+DEFAULT_CHESS_PIECE_PROPERTIES.IN_CHECK = new ChessPieceProperty({
+    property: 'checked',
+    value: false,
+    get: function({piece}) {
+        if (!piece.checkable) return false;
+        if (!piece.attacked) return false;
+        return true;
+    }
+}) // done
+DEFAULT_CHESS_PIECE_PROPERTIES.MOVED = new ChessPieceProperty({
+    property: 'moved',
+    value: false
+})
+DEFAULT_CHESS_PIECE_PROPERTIES.MOVEABLE = new ChessPieceProperty({
+    property: 'moveable',
+    value: true
+})
+const DEFAULT_CHESS_BOARD_PROPERTIES = {};
+DEFAULT_CHESS_BOARD_PROPERTIES.ORIENTATION = new ChessBoardProperty({
+    property: 'orientation',
+    value: 'w',
+    onMove: function() {
+        this.orientation = this.orientation === 'w' ? 'b':'w';
+        for (let index in this.fastBoard) {
+            if (!this.fastBoard[index].piece) continue;
+            this.fastBoard[index].piece.moveable = !this.fastBoard[index].piece.moveable;
+        }
+    }
+})
+DEFAULT_CHESS_BOARD_PROPERTIES.CHECKED_PIECES = new ChessBoardProperty({
+    property: 'checkedPieces',
+    value: [],
+    onMove: function() {
+        this.checkedPieces = this.fastBoard.map((v,i)=>[v.piece,i]).filter(v=>v[0]?.checked);
+    }
+});
+
+// send a signal to other squares when a piece is moved
+// if a signal hits a checkable piece, send another signal from that piece
+// use this signal to ping other pieces that may have put it in check
+
 DEFAULT_CHESS_RULES.INFINITE_TRAVEL = new ChessRule({
     symbol: '*',
     stored: 'infinite',
-    condition: function(board,piece,move,cur) {
+    priority: 1,
+    condition: function({board,piece,move,curVal}) {
         let valid = piece.moves['infinite'].find(v=>
             v[0]*move[1] === v[1]*move[0] &&
             (move[0] % v[0] === 0 || move[0] === v[0]) &&
@@ -581,11 +777,11 @@ DEFAULT_CHESS_RULES.INFINITE_TRAVEL = new ChessRule({
             );
         if (!valid) return false;
         for (let i=[0,0]; i[0]!==move[0]||i[1]!==move[1];(i[0]+=valid[0],i[1]+=valid[1])) {
-            let moveVal = i[0]*board.width+i[1]+cur;
-            if (board.fastBoard[moveVal].piece) {
-                let friend = piece.rules['FRIENDLY_CAPTURES'].condition(board,piece,move,cur,{test: true});
-                friend = friend && !piece.rules['FRIENDLY_CAPTURES'].allow;
-                return i[0]===move[0] && i[1]===move[1] && friend;
+            let moveVal = i[0]*board.width+i[1]+curVal;
+            let captured = board.fastBoard[moveVal].piece;
+            if (captured) {
+                if (i[0]!==move[0]||i[1]!==move[1]) return false;
+                return true;
             }
         }
         return true;
@@ -613,15 +809,13 @@ DEFAULT_CHESS_RULES.INFINITE_TRAVEL = new ChessRule({
             let crdOften = [direction[0]*often,direction[1]*often];
             for (let i=[0,0]; i[0]!==crdOften[0]||i[1]!==crdOften[1];(i[0]+=direction[0],i[1]+=direction[1])) {
                 let moveVal = (i[0]+direction[0])*this.width+(i[1]+direction[1])+cur;
+                let captured = this.fastBoard[moveVal].piece;
                 let parsedMoveVal = [Math.floor(moveVal/this.width),moveVal % this.width];
-                let friend = piece.rules['FRIENDLY_CAPTURES'].condition(this,piece,parsedMoveVal,cur,{test: true});
-                friend = friend && !piece.rules['FRIENDLY_CAPTURES'].allow;
-                if (friend) {
-                    break;
-                }
-                if(i[0]===crdOften[0] && i[1]===crdOften[1] && !friend) {
+                if (captured) {
+                    if (i[0]!==crdOften[0]&&i[1]!==crdOften[1]) break;
+                    let legal = this.action['capture'].testLegal({curVal,moveVal});
+                    if (!legal) break;
                     returnValue.push(parsedMoveVal);
-                    break;
                 }
                 returnValue.push(parsedMoveVal);
             }
@@ -641,11 +835,12 @@ DEFAULT_CHESS_RULES.INFINITE_TRAVEL = new ChessRule({
 DEFAULT_CHESS_RULES.CAPTURES = new ChessRule({
     symbol: 'x',
     stored: 'capture',
-    condition: function(board,piece,move,cur) {
+    priority: 1,
+    condition: function({piece,move,captured}) {
+        if (!captured) return false;
         if (!piece.moves['capture'].length) return false;
-        let friend = piece.rules['FRIENDLY_CAPTURES'].condition(board,piece,move,cur,{test: true});
-        friend = friend && !piece.rules['FRIENDLY_CAPTURES'].allow;
-        return piece.moves['capture'].some(v=>v[0]===move[0]&&v[1]===move[1]) && friend;
+        if (!piece.moves['capture'].some(v=>v[0]===move[0]&&v[1]===move[1])) return false;
+        return true;
     },
     action: function(piece,move,cur) {
         let moveVal = move[0]*this.width+move[1];
@@ -656,10 +851,10 @@ DEFAULT_CHESS_RULES.CAPTURES = new ChessRule({
 DEFAULT_CHESS_RULES.MOVES = new ChessRule({
     symbol: '_',
     stored: 'move',
-    condition: function(board,piece,move,cur) {
-        let moveVal = move[0]*board.width+move[1];
+    priority: 1,
+    condition: function({piece,move,captured}) {
         if (!piece.moves['move'].length) return false;
-        if (board.fastBoard[moveVal].piece) return false;
+        if (captured) return false;
         return piece.moves['move'].some(v=>v[0]===move[0]&&v[1]===move[1]);
     },
     action: function(piece,move,cur) {
@@ -671,10 +866,10 @@ DEFAULT_CHESS_RULES.MOVES = new ChessRule({
 DEFAULT_CHESS_RULES.TAKES = new ChessRule({
     symbol: '+',
     stored: 'static',
-    condition: function(board,piece,move,cur) {
+    priority: 1,
+    condition: function({piece,move,captured}) {
         let valid = piece.moves['static'].some(v=>v[0]===move[0]&&v[1]===move[1]);
-        let friend = piece.rules['FRIENDLY_CAPTURES'].condition(board,piece,move,cur,{test: true});
-        friend = friend && !piece.rules['FRIENDLY_CAPTURES'].allow;
+        let friend = piece.rules['FRIENDLY_CAPTURES'].test({piece:piece,captured:captured});
         if (friend) return false;
         if (!piece.moves['static'].length) return false;
         if (!valid) return false;
@@ -691,13 +886,19 @@ DEFAULT_CHESS_RULES.FRIENDLY_CAPTURES = new ChessRule({
     allow: false,
     symbolMode: 'disable',
     stored: 'friendly',
-    condition:  function(board,piece,move,cur,{test = false} = {}) {
-        let moveVal = move[0]*board.width+move[1];
-        if (!test && !piece.moves['friendly'].length) return false;
-        if (!test && !piece.moves['friendly'].some(v=>v[0]===move[1]&&v[1]===move[1])) return false;
-        if (!board.fastBoard[moveVal].piece) return false;
-        if (isUpperCase(board.fastBoard[moveVal][0]) !== isUpperCase(piece.piece)) return false;
+    priority: 2,
+    condition:  function({piece,move,captured}) {
+        if (!captured) return false;
+        if (!piece.moves['friendly'].length) return false;
+        if (!piece.moves['friendly'].some(v=>v[0]===move[1]&&v[1]===move[1])) return false;
+        if (isUpperCase(captured.piece) !== isUpperCase(piece.piece)) return false;
         return true;
+    },
+    test: function({piece,captured}) {
+        let needed = piece.rules['FRIENDLY_CAPTURES']?.allow ?? this.allow;
+        if (!captured) return needed;
+        if (isUpperCase(captured.piece) !== isUpperCase(piece.piece)) return needed;
+        return !needed;
     },
     action: function(piece,move,cur) {
         let moveVal = move[0]*this.width+move[1];
@@ -708,14 +909,13 @@ DEFAULT_CHESS_RULES.FRIENDLY_CAPTURES = new ChessRule({
 DEFAULT_CHESS_RULES.KING_SIDE_CASTLING = new ChessRule({
     symbol: '>',
     stored: 'KCastling',
-    condition: function(board,piece,move,cur) {
-        let moveVal = move[0]*board.width+move[1];
+    condition: function({board,piece,moveVal,curVal}) {
         let rook = board.fastBoard[moveVal+1];
         if(!piece.moves['KCastling'].length) return false; 
         if(rook.piece !== 'R' || rook.piece !== 'r') return false;
         if(piece.moved) return false;
         if(rook.moved) return false;
-        if(cur >= moveVal) return false;
+        if(curVal >= moveVal) return false;
         return true;
     },
     action: function(piece,move,cur) {
@@ -728,21 +928,20 @@ DEFAULT_CHESS_RULES.KING_SIDE_CASTLING = new ChessRule({
 DEFAULT_CHESS_RULES.QUEEN_SIDE_CASTLING = new ChessRule({
     symbol: '<',
     stored: 'QCastling',
-    condition: function(board,piece,move,cur) {
+    condition: function({board,piece,moveVal,curVal}) {
         if (!piece.moves['QCastling'].length) return false;
-        let moveVal = move[0]*board.width+move[1];
         let rook = board.fastBoard[moveVal-2];
         if(rook.piece !== 'R' || rook.piece !== 'r') return false;
         if(piece.moved) return false;
         if(rook.moved) return false;
-        if(cur <= moveVal) return false;
+        if(curVal <= moveVal) return false;
         return true;
     }
 });
 DEFAULT_CHESS_RULES.PASSANT = new ChessRule({
     symbol: '^',
     stored: 'passant',
-    condition:  function(board,piece,move,cur) {
+    condition:  function({piece}) {
         if (!piece.moves['passant'].length) return false;
         return piece.moved;
     },
@@ -757,9 +956,8 @@ DEFAULT_CHESS_RULES.PASSANT = new ChessRule({
 DEFAULT_CHESS_RULES.ENPASSANT = new ChessRule({
     symbol: '%',
     stored: 'enpassant',
-    condition: function(board,piece,move,cur) {
+    condition: function({board,piece,moveVal}) {
         if (!piece.moves['enpassant'].length) return false;
-        let moveVal = move[0]*board.width+move[1];
         return board.fastBoard[moveVal].enpassant ?? true;
     },
     /**
@@ -774,12 +972,12 @@ DEFAULT_CHESS_RULES.ENPASSANT = new ChessRule({
 DEFAULT_CHESS_RULES.PROMOTION = new ChessRule({
     symbol: '=',
     stored: 'promote',
-    condition: function(board,piece,move,cur) {
+    priority: 1,
+    condition: function({board,piece,moveVal}) {
         if (!piece.moves['promote'].length) return false;
-        let moveVal =  move[0]*board.width+move[1];
         return moveVal > board.width*(board.height-1) || moveVal < board.width;
     }
-})
+});
 
 const Bishop = new ChessPiece({
     piece: 'B',
@@ -859,12 +1057,12 @@ Gambit.store([
 // ])
 Gambit.load([
     ['r','n','b','q','k','b','n','r'],
-    ['p','p',' ','p','p','p','p','p'],
-    [' ',' ','p',' ',' ',' ',' ',' '],
+    ['p','p','p','p',' ','p','p','p'],
     [' ',' ',' ',' ',' ',' ',' ',' '],
+    [' ',' ',' ',' ','p',' ',' ',' '],
+    [' ',' ',' ',' ','P',' ',' ',' '],
     [' ',' ',' ',' ',' ',' ',' ',' '],
-    [' ',' ',' ',' ',' ',' ',' ',' '],
-    ['P','P','P','P','P','P','P','P'],
+    ['P','P','P','P',' ','P','P','P'],
     ['R','N','B','Q','K','B','N','R']
 ])
 Gambit.draw();

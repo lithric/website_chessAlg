@@ -1073,6 +1073,8 @@ chess1.atdrop.push(
 
 //chess2.put({type: "Q", color: "w"}, "e4");
 var bogg = new Chess();
+bogg.move('e4');
+bogg.move('e5');
 console.time();
 bogg.moves();
 console.timeEnd();
